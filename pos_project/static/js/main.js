@@ -37,79 +37,27 @@ function actualizarContador(textareaId, contadorId, maxLength) {
             const caracteresRestantes = maxLength - this.value.length;
             contador.textContent = caracteresRestantes;
             
-            // Cambiar color si se acerca al límite
-            if (caracteresRestantes < 50) {
-                contador.style.color = '#dc3545'; // Rojo
-            } else if (caracteresRestantes < 100) {
-                contador.style.color = '#ffc107'; // Amarillo
+            if (caracteresRestantes < 20) {
+                contador.classList.add('text-danger');
             } else {
-                contador.style.color = '#6c757d'; // Gris
+                contador.classList.remove('text-danger');
             }
         });
     }
 }
 
-// Función para búsqueda en tiempo real
-function busquedaEnTiempoReal(inputId, contenedorId) {
-    const input = document.getElementById(inputId);
-    const contenedor = document.getElementById(contenedorId);
+// Función para validar formularios
+function validarFormulario(formId) {
+    const form = document.getElementById(formId);
     
-    if (input && contenedor) {
-        input.addEventListener('keyup', function() {
-            const busqueda = this.value.toLowerCase();
-            const elementos = contenedor.querySelectorAll('.elemento-busqueda');
+    if (form) {
+        form.addEventListener('submit', function(event) {
+            if (!form.checkValidity()) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
             
-            elementos.forEach(function(elemento) {
-                const texto = elemento.textContent.toLowerCase();
-                if (texto.includes(busqueda)) {
-                    elemento.style.display = '';
-                } else {
-                    elemento.style.display = 'none';
-                }
-            });
+            form.classList.add('was-validated');
         });
     }
-}
-
-// Función para formatear números como moneda
-function formatearMoneda(numero) {
-    return new Intl.NumberFormat('es-PE', {
-        style: 'currency',
-        currency: 'PEN'
-    }).format(numero);
-}
-
-// Función para mostrar notificaciones toast
-function mostrarToast(mensaje, tipo = 'info') {
-    const toastContainer = document.getElementById('toast-container') || crearContenedorToast();
-    
-    const toast = document.createElement('div');
-    toast.className = `toast align-items-center text-white bg-${tipo} border-0`;
-    toast.setAttribute('role', 'alert');
-    toast.innerHTML = `
-        <div class="d-flex">
-            <div class="toast-body">
-                ${mensaje}
-            </div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-        </div>
-    `;
-    
-    toastContainer.appendChild(toast);
-    const bsToast = new bootstrap.Toast(toast);
-    bsToast.show();
-    
-    // Eliminar el toast después de que se oculte
-    toast.addEventListener('hidden.bs.toast', function() {
-        this.remove();
-    });
-}
-
-// Crear contenedor para toasts si no existe
-function crearContenedorToast() {
-    const container = document.createElement('div');
-    container.id = 'toast-container';
-    container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
-    document.body.appendChild(container);
-    return container;
 }

@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Eliminar Artículo - Sistema POS{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="h3">
+        <i class="fas fa-trash me-2 text-danger"></i>Eliminar Artículo
+    </h2>
+    <a href="{% url 'articulos_list' %}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i>Volver
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card shadow">
+            <div class="card-header bg-danger text-white py-3">
+                <h6 class="m-0 font-weight-bold">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Confirmar Eliminación
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>¡Atención!</strong> Esta acción no se puede deshacer.
+                </div>
+
+                <div class="mb-4">
+                    <h5>¿Está seguro que desea eliminar este artículo?</h5>
+                    <div class="border p-3 bg-light rounded mt-3">
+                        <h6 class="mb-2"><strong>Código:</strong> {{ articulo.codigo_articulo }}</h6>
+                        <h6 class="mb-2"><strong>Descripción:</strong> {{ articulo.descripcion }}</h6>
+                        <h6 class="mb-2"><strong>Grupo:</strong> {{ articulo.grupo.nombre_grupo }}</h6>
+                        <h6 class="mb-2"><strong>Línea:</strong> {{ articulo.linea.nombre_linea }}</h6>
+                        <h6 class="mb-0"><strong>Stock Actual:</strong> {{ articulo.stock }}</h6>
+                    </div>
+                </div>
+
+                <form method="POST">
+                    {% csrf_token %}
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash me-1"></i>Sí, Eliminar Artículo
+                        </button>
+                        <a href="{% url 'articulos_list' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times me-1"></i>Cancelar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

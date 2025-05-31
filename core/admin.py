@@ -1,32 +1,46 @@
 from django.contrib import admin
-from .models import GrupoArticulo, Articulo, Venta, DetalleVenta
+from .models import GrupoArticulo, LineaArticulo, Articulo, ListaPrecio
 
 @admin.register(GrupoArticulo)
 class GrupoArticuloAdmin(admin.ModelAdmin):
-    list_display = ['nombre', 'activo', 'fecha_creacion']
-    list_filter = ['activo', 'fecha_creacion']
-    search_fields = ['nombre']
+    list_display = ['nombre_grupo', 'estado', 'fecha_creacion']
+    list_filter = ['estado', 'fecha_creacion']
+    search_fields = ['nombre_grupo']
+    ordering = ['nombre_grupo']
+
+@admin.register(LineaArticulo)
+class LineaArticuloAdmin(admin.ModelAdmin):
+    list_display = ['nombre_linea', 'grupo', 'estado', 'fecha_creacion']
+    list_filter = ['grupo', 'estado', 'fecha_creacion']
+    search_fields = ['nombre_linea', 'grupo__nombre_grupo']
+    ordering = ['grupo__nombre_grupo', 'nombre_linea']
+
+class ListaPrecioInline(admin.TabularInline):
+    model = ListaPrecio
+    extra = 0
 
 @admin.register(Articulo)
 class ArticuloAdmin(admin.ModelAdmin):
-    list_display = ['codigo', 'nombre', 'grupo', 'precio', 'stock', 'tiene_stock_bajo', 'activo']
-    list_filter = ['grupo', 'activo', 'fecha_creacion']
-    search_fields = ['codigo', 'nombre']
-    list_editable = ['precio', 'stock']
+    list_display = ['codigo_articulo', 'descripcion', 'grupo', 'linea', 'stock', 'estado']
+    list_filter = ['grupo', 'linea', 'estado', 'fecha_creacion']
+    search_fields = ['codigo_articulo', 'codigo_barras', 'descripcion']
+    ordering = ['codigo_articulo']
+    inlines = [ListaPrecioInline]
     
-    def tiene_stock_bajo(self, obj):
-        return obj.tiene_stock_bajo
-    tiene_stock_bajo.boolean = True
-    tiene_stock_bajo.short_description = 'Stock Bajo'
+    fieldsets = (
+        ('Información Básica', {
+            'fields': ('codigo_articulo', 'codigo_barras', 'descripcion', 'presentacion')
+        }),
+        ('Clasificación', {
+            'fields': ('grupo', 'linea')
+        }),
+        ('Inventario', {
+            'fields': ('stock', 'estado')
+        }),
+    )
 
-class DetalleVentaInline(admin.TabularInline):
-    model = DetalleVenta
-    extra = 0
-
-@admin.register(Venta)
-class VentaAdmin(admin.ModelAdmin):
-    list_display = ['numero_venta', 'usuario', 'fecha', 'total', 'estado']
-    list_filter = ['estado', 'fecha']
-    search_fields = ['numero_venta', 'usuario__username']
-    readonly_fields = ['numero_venta', 'fecha']
-    inlines = [DetalleVentaInline]
+@admin.register(ListaPrecio)
+class ListaPrecioAdmin(admin.ModelAdmin):
+    list_display = ['articulo', 'precio_1', 'precio_2', 'precio_compra', 'precio_costo']
+    search_fields = ['articulo__descripcion', 'articulo__codigo_articulo']
+    ordering = ['articulo__descripcion']

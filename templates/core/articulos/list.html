@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Artículos - Sistema POS{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="h3">
+        <i class="fas fa-boxes me-2"></i>Gestión de Artículos
+    </h2>
+    <a href="{% url 'articulo_create' %}" class="btn btn-primary">
+        <i class="fas fa-plus me-1"></i>Nuevo Artículo
+    </a>
+</div>
+
+<!-- Formulario de búsqueda -->
+<div class="card shadow mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-6">
+                <input type="text" class="form-control" name="q" 
+                       placeholder="Buscar por descripción..." 
+                       value="{{ request.GET.q }}">
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-outline-primary">
+                    <i class="fas fa-search me-1"></i>Buscar
+                </button>
+            </div>
+            <div class="col-md-3">
+                <a href="{% url 'articulos_list' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-times me-1"></i>Limpiar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Lista de artículos -->
+<div class="card shadow">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Lista de Artículos</h6>
+    </div>
+    <div class="card-body">
+        {% if articulos %}
+            <div class="table-responsive">
+                <table class="table table-bordered" id="dataTable">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Descripción</th>
+                            <th>Grupo</th>
+                            <th>Línea</th>
+                            <th>Stock</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for articulo in articulos %}
+                            <tr>
+                                <td>{{ articulo.codigo_articulo }}</td>
+                                <td>{{ articulo.descripcion }}</td>
+                                <td>{{ articulo.grupo.nombre_grupo }}</td>
+                                <td>{{ articulo.linea.nombre_linea }}</td>
+                                <td>
+                                    <span class="badge {% if articulo.stock < 10 %}bg-warning{% else %}bg-success{% endif %}">
+                                        {{ articulo.stock }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a href="{% url 'articulo_detail' articulo.articulo_id %}" 
+                                           class="btn btn-sm btn-outline-info" title="Ver detalle">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="{% url 'articulo_edit' articulo.articulo_id %}" 
+                                           class="btn btn-sm btn-outline-primary" title="Editar">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <a href="{% url 'articulo_delete' articulo.articulo_id %}" 
+                                           class="btn btn-sm btn-outline-danger" title="Eliminar">
+                                            <i class="fas fa-trash"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginación -->
+            {% if articulos.has_other_pages %}
+                <nav aria-label="Paginación de artículos">
+                    <ul class="pagination justify-content-center">
+                        {% if articulos.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}">Primera</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ articulos.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}">Anterior</a>
+                            </li>
+                        {% endif %}
+
+                        <li class="page-item active">
+                            <span class="page-link">
+                                Página {{ articulos.number }} de {{ articulos.paginator.num_pages }}
+                            </span>
+                        </li>
+
+                        {% if articulos.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ articulos.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}">Siguiente</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ articulos.paginator.num_pages }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}">Última</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-box-open fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No hay artículos registrados</h5>
+                <p class="text-muted">Comienza agregando tu primer artículo</p>
+                <a href="{% url 'articulo_create' %}" class="btn btn-primary">
+                    <i class="fas fa-plus me-1"></i>Crear Artículo
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
