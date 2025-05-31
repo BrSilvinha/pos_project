@@ -16,6 +16,7 @@ class TipoIdentificacion(models.Model):
     tipo_id = models.AutoField(primary_key=True)
     nombre_tipo_identificacion = models.CharField(max_length=100)
     estado = models.IntegerField(choices=EstadoEntidades, default=EstadoEntidades.ACTIVO)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
         return self.nombre_tipo_identificacion
@@ -27,6 +28,7 @@ class CanalCliente(models.Model):
     canal_id = models.AutoField(primary_key=True)
     nombre_canal = models.CharField(max_length=100)
     estado = models.IntegerField(choices=EstadoEntidades, default=EstadoEntidades.ACTIVO)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
         return self.nombre_canal
@@ -68,6 +70,8 @@ class GrupoArticulo(models.Model):
     grupo_id = models.AutoField(primary_key=True)
     nombre_grupo = models.CharField(max_length=100)
     estado = models.IntegerField(choices=EstadoEntidades, default=EstadoEntidades.ACTIVO)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)  # ← AGREGADO
+    fecha_modificacion = models.DateTimeField(auto_now=True)  # ← AGREGADO
     
     def __str__(self):
         return self.nombre_grupo
@@ -80,6 +84,8 @@ class LineaArticulo(models.Model):
     grupo = models.ForeignKey(GrupoArticulo, on_delete=models.CASCADE)
     nombre_linea = models.CharField(max_length=100)
     estado = models.IntegerField(choices=EstadoEntidades, default=EstadoEntidades.ACTIVO)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)  # ← AGREGADO
+    fecha_modificacion = models.DateTimeField(auto_now=True)  # ← AGREGADO
     
     def __str__(self):
         return self.nombre_linea
@@ -124,10 +130,10 @@ class ListaPrecio(models.Model):
     class Meta:
         db_table = "lista_precios"
 
-# Modelos del carrito (que ya tienes)
+# Modelos del carrito - CORREGIDOS
 class OrdenCompraCliente(models.Model):
     pedido_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    nro_pedido = models.BigAutoField(unique=True, null=False, auto_created=True)
+    nro_pedido = models.CharField(max_length=50, unique=True, blank=True)  # ← CORREGIDO
     fecha_pedido = models.DateField(auto_now_add=True, null=False)
     cliente = models.ForeignKey(Cliente, on_delete=models.RESTRICT, null=False)
     vendedor = models.ForeignKey(Vendedor, on_delete=models.RESTRICT, null=False)
@@ -136,6 +142,13 @@ class OrdenCompraCliente(models.Model):
     notas = models.TextField(blank=True, null=True)
     creado_por = models.ForeignKey(Usuario, on_delete=models.RESTRICT, null=False)
     fecha_creacion = models.DateTimeField(auto_now_add=True, null=False)
+
+    def save(self, *args, **kwargs):
+        if not self.nro_pedido:
+            # Generar número de pedido automático
+            import time
+            self.nro_pedido = f"ORD-{int(time.time())}"
+        super().save(*args, **kwargs)
 
     def actualizar_total(self):
         """Actualiza el total de la orden basado en los items"""

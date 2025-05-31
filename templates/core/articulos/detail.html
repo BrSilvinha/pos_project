@@ -9,8 +9,8 @@
         <i class="fas fa-box me-2"></i>Detalle del Artículo
     </h2>
     <div>
-        <a href="{% url 'articulo_edit' articulo.articulo_id %}" class="btn btn-primary me-2">
-            <i class="fas fa-edit me-1"></i>Editar
+        <a href="{% url 'cart_detail' %}" class="btn btn-outline-success me-2">
+            <i class="fas fa-shopping-cart me-1"></i>Ver Carrito
         </a>
         <a href="{% url 'articulos_list' %}" class="btn btn-outline-secondary">
             <i class="fas fa-arrow-left me-1"></i>Volver
@@ -80,6 +80,84 @@
                 </div>
             </div>
         </div>
+
+        <!-- ✅ SECCIÓN AGREGADA: CARRITO DE COMPRAS -->
+        <div class="card shadow mt-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-cart-plus me-2"></i>Agregar al Carrito
+                </h6>
+            </div>
+            <div class="card-body">
+                <form action="{% url 'cart_add' articulo.articulo_id %}" method="post" class="mb-3">
+                    {% csrf_token %}
+                    <div class="row align-items-end">
+                        <div class="col-md-4">
+                            <label for="cantidad" class="form-label">Cantidad</label>
+                            <input type="number" name="cantidad" value="1" min="1" max="{{ articulo.stock }}" class="form-control" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Precio Unitario</label>
+                            <p class="form-control-plaintext text-success h5">
+                                {% if articulo.listaprecio %}
+                                    S/ {{ articulo.listaprecio.precio_1|floatformat:2 }}
+                                {% else %}
+                                    No disponible
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="col-md-4">
+                            <button type="submit" class="btn btn-primary w-100" {% if not articulo.listaprecio or articulo.stock <= 0 %}disabled{% endif %}>
+                                <i class="fas fa-cart-plus me-1"></i>Añadir al Carrito
+                            </button>
+                        </div>
+                    </div>
+                    {% if not articulo.listaprecio %}
+                        <div class="alert alert-warning mt-2">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Este artículo no tiene precio configurado.
+                        </div>
+                    {% elif articulo.stock <= 0 %}
+                        <div class="alert alert-danger mt-2">
+                            <i class="fas fa-times-circle me-2"></i>
+                            Artículo sin stock disponible.
+                        </div>
+                    {% endif %}
+                </form>
+            </div>
+        </div>
+
+        <!-- ✅ SECCIÓN AGREGADA: PRODUCTOS VISITADOS RECIENTEMENTE -->
+        {% if recent_products %}
+        <div class="card shadow mt-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-history me-2"></i>Vistos recientemente
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for product in recent_products %}
+                    <div class="col-md-3 mb-2">
+                        <div class="card">
+                            <div class="card-body p-2">
+                                <h6 class="card-title small">{{ product.descripcion|truncatechars:25 }}</h6>
+                                <p class="card-text text-primary mb-1">
+                                    {% if product.listaprecio %}
+                                        S/ {{ product.listaprecio.precio_1|floatformat:2 }}
+                                    {% else %}
+                                        Sin precio
+                                    {% endif %}
+                                </p>
+                                <a href="{% url 'articulo_detail' product.articulo_id %}" class="btn btn-sm btn-outline-primary">Ver</a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <div class="col-lg-4">
@@ -136,11 +214,11 @@
             </div>
             <div class="card-body">
                 <div class="d-grid gap-2">
-                    <a href="{% url 'articulo_edit' articulo.articulo_id %}" class="btn btn-outline-primary">
-                        <i class="fas fa-edit me-1"></i>Editar Artículo
+                    <a href="{% url 'cart_detail' %}" class="btn btn-success">
+                        <i class="fas fa-shopping-cart me-1"></i>Ver Carrito
                     </a>
-                    <a href="{% url 'articulo_delete' articulo.articulo_id %}" class="btn btn-outline-danger">
-                        <i class="fas fa-trash me-1"></i>Eliminar Artículo
+                    <a href="{% url 'articulos_list' %}" class="btn btn-outline-primary">
+                        <i class="fas fa-list me-1"></i>Lista de Artículos
                     </a>
                 </div>
             </div>

@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
-    Usuario, TipoIdentificacion, CanalCliente, Cliente, Vendedor,
-    GrupoArticulo, LineaArticulo, Articulo, ListaPrecio,
+    Usuario, GrupoArticulo, LineaArticulo, Articulo, ListaPrecio,
+    TipoIdentificacion, CanalCliente, Cliente, Vendedor,
     OrdenCompraCliente, ItemOrdenCompraCliente
 )
 
@@ -10,6 +10,31 @@ class UsuarioAdmin(admin.ModelAdmin):
     list_display = ['username', 'email', 'full_name', 'is_active', 'date_joined']
     list_filter = ['is_active', 'is_staff', 'date_joined']
     search_fields = ['username', 'email', 'full_name']
+
+@admin.register(GrupoArticulo)
+class GrupoArticuloAdmin(admin.ModelAdmin):
+    list_display = ['nombre_grupo', 'estado', 'fecha_creacion']
+    list_filter = ['estado', 'fecha_creacion']
+    search_fields = ['nombre_grupo']
+
+@admin.register(LineaArticulo)
+class LineaArticuloAdmin(admin.ModelAdmin):
+    list_display = ['nombre_linea', 'grupo', 'estado', 'fecha_creacion']
+    list_filter = ['estado', 'grupo', 'fecha_creacion']
+    search_fields = ['nombre_linea', 'grupo__nombre_grupo']
+
+@admin.register(Articulo)
+class ArticuloAdmin(admin.ModelAdmin):
+    list_display = ['codigo_articulo', 'descripcion', 'grupo', 'linea', 'stock', 'estado']
+    list_filter = ['estado', 'grupo', 'linea', 'fecha_creacion']
+    search_fields = ['codigo_articulo', 'descripcion', 'codigo_barras']
+    list_editable = ['stock']
+
+@admin.register(ListaPrecio)
+class ListaPrecioAdmin(admin.ModelAdmin):
+    list_display = ['articulo', 'precio_1', 'precio_2', 'fecha_creacion']
+    list_filter = ['fecha_creacion']
+    search_fields = ['articulo__descripcion', 'articulo__codigo_articulo']
 
 @admin.register(TipoIdentificacion)
 class TipoIdentificacionAdmin(admin.ModelAdmin):
@@ -34,31 +59,6 @@ class VendedorAdmin(admin.ModelAdmin):
     list_display = ['nombres', 'correo_electronico', 'estado', 'fecha_creacion']
     list_filter = ['estado', 'fecha_creacion']
     search_fields = ['nombres', 'correo_electronico']
-
-@admin.register(GrupoArticulo)
-class GrupoArticuloAdmin(admin.ModelAdmin):
-    list_display = ['nombre_grupo', 'estado', 'fecha_creacion']  # ← CORREGIDO
-    list_filter = ['estado', 'fecha_creacion']  # ← CORREGIDO
-    search_fields = ['nombre_grupo']
-
-@admin.register(LineaArticulo)
-class LineaArticuloAdmin(admin.ModelAdmin):
-    list_display = ['nombre_linea', 'grupo', 'estado', 'fecha_creacion']  # ← CORREGIDO
-    list_filter = ['estado', 'grupo', 'fecha_creacion']  # ← CORREGIDO
-    search_fields = ['nombre_linea', 'grupo__nombre_grupo']
-
-@admin.register(Articulo)
-class ArticuloAdmin(admin.ModelAdmin):
-    list_display = ['codigo_articulo', 'descripcion', 'grupo', 'linea', 'stock', 'estado']
-    list_filter = ['estado', 'grupo', 'linea', 'fecha_creacion']
-    search_fields = ['codigo_articulo', 'descripcion', 'codigo_barras']
-    list_editable = ['stock']
-
-@admin.register(ListaPrecio)
-class ListaPrecioAdmin(admin.ModelAdmin):
-    list_display = ['articulo', 'precio_1', 'precio_2', 'estado', 'fecha_creacion']
-    list_filter = ['estado', 'fecha_creacion']
-    search_fields = ['articulo__descripcion', 'articulo__codigo_articulo']
 
 @admin.register(OrdenCompraCliente)
 class OrdenCompraClienteAdmin(admin.ModelAdmin):
