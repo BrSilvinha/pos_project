@@ -136,3 +136,48 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+# Configuración del modelo de usuario personalizado
+AUTH_USER_MODEL = 'core.Usuario'
+
+# Configuración de autenticación
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = 'dashboard'
+LOGOUT_REDIRECT_URL = 'login'
+
+# Configuración de sesiones para el carrito
+SESSION_COOKIE_AGE = 1209600  # 2 semanas en segundos
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_COOKIE_SECURE = False  # Cambiar a True en producción con HTTPS
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Almacenar en la base de datos
+
+# Configuración de mensajes
+from django.contrib.messages import constants as messages
+MESSAGE_TAGS = {
+    messages.DEBUG: 'debug',
+    messages.INFO: 'info',
+    messages.SUCCESS: 'success',
+    messages.WARNING: 'warning',
+    messages.ERROR: 'danger',
+}# Configuración del modelo de usuario personalizado
+AUTH_USER_MODEL = 'core.Usuario'
+
+# Configuración de autenticación
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = 'dashboard'
+LOGOUT_REDIRECT_URL = 'login'
+
+# Configuración de sesiones para el carrito
+SESSION_COOKIE_AGE = 1209600  # 2 semanas en segundos
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_COOKIE_SECURE = False  # Cambiar a True en producción con HTTPS
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Almacenar en la base de datos
+
+# Configuración de mensajes
+from django.contrib.messages import constants as messages
+MESSAGE_TAGS = {
+    messages.DEBUG: 'debug',
+    messages.INFO: 'info',
+    messages.SUCCESS: 'success',
+    messages.WARNING: 'warning',
+    messages.ERROR: 'danger',
+}
