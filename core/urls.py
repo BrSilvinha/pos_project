@@ -3,11 +3,15 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    # Dashboard - también accesible como 'home'
+    # Dashboard
     path('', views.dashboard, name='dashboard'),
-    path('home/', views.dashboard, name='home'),  # ← AGREGAR ESTA LÍNEA
+    path('home/', views.dashboard, name='home'),
     
     # Artículos
+    path('articulos/', views.articulos_list, name='articulos_list'),
+    path('articulos/<uuid:articulo_id>/', views.articulo_detail, name='articulo_detail'),
+    
+    # Carrito
     path('carrito/', views.cart_detail, name='cart_detail'),
     path('carrito/agregar/<uuid:articulo_id>/', views.cart_add, name='cart_add'),
     path('carrito/eliminar/<uuid:articulo_id>/', views.cart_remove, name='cart_remove'),
