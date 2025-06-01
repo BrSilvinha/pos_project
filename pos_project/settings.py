@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,12 +21,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-+a)pl$48yxx9mv+zshvj7!)q76=jmtes62&y@o5lpvrz*z$sdx'
+SECRET_KEY = config('SECRET_KEY', default='django-insecure-+a)pl$48yxx9mv+zshvj7!)q76=jmtes62&y@o5lpvrz*z$sdx')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=lambda v: [s.strip() for s in v.split(',')])
 
 
 # Application definition
@@ -78,13 +79,22 @@ WSGI_APPLICATION = 'pos_project.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'dbpedidos_silva',
-        'USER': 'admin_silva',
-        'PASSWORD': '71749437',
-        'HOST': '127.0.0.1',
-        'PORT': '5432'
+        'NAME': config('DB_NAME', default='dbpedidos_silva'),
+        'USER': config('DB_USER', default='admin_silva'),
+        'PASSWORD': config('DB_PASSWORD', default='71749437'),
+        'HOST': config('DB_HOST', default='127.0.0.1'),
+        'PORT': config('DB_PORT', default='5432'),
     }
 }
+
+# Configuración alternativa para SQLite (desarrollo)
+# Descomenta estas líneas si quieres usar SQLite en lugar de PostgreSQL
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
 
 
 # Password validation
@@ -146,7 +156,7 @@ LOGOUT_REDIRECT_URL = 'login'
 # ✅ CONFIGURACIÓN DE SESIONES PARA EL CARRITO
 SESSION_COOKIE_AGE = 1209600  # 2 semanas en segundos
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
-SESSION_COOKIE_SECURE = False  # Cambiar a True en producción con HTTPS
+SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)  # True en producción con HTTPS
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Almacenar en la base de datos
 
 # ✅ CONFIGURACIÓN DE MENSAJES
@@ -158,11 +168,52 @@ MESSAGE_TAGS = {
     messages.WARNING: 'warning',
     messages.ERROR: 'danger',
 }
+
 # ✅ CONFIGURACIÓN DE EMAIL
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'  # O tu proveedor SMTP
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'jhamirsilva@gmail.com'
-EMAIL_HOST_PASSWORD = 'Jhamir&12'
-DEFAULT_FROM_EMAIL = 'Sistema POS jhamirsilva@gmail.com'
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='jhamirsilva@gmail.com')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='Jhamir&12')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='Sistema POS jhamirsilva@gmail.com')
+
+# ✅ CONFIGURACIÓN DE SEGURIDAD PARA PRODUCCIÓN
+if not DEBUG:
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_SECONDS = 86400
+    SECURE_REDIRECT_EXEMPT = []
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    
+# ✅ CONFIGURACIÓN DE LOGGING
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'file': {
+            'level': 'ERROR',
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'django_errors.log',
+        },
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'core': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    },
+}

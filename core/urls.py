@@ -13,9 +13,12 @@ urlpatterns = [
     path('', views.dashboard, name='dashboard'),
     path('home/', views.dashboard, name='home'),
     
-    # Artículos
+    # Artículos - CRUD completo
     path('articulos/', views.articulos_list, name='articulos_list'),
+    path('articulos/crear/', views.articulo_create, name='articulo_create'),
     path('articulos/<uuid:articulo_id>/', views.articulo_detail, name='articulo_detail'),
+    path('articulos/<uuid:articulo_id>/editar/', views.articulo_edit, name='articulo_edit'),
+    path('articulos/<uuid:articulo_id>/eliminar/', views.articulo_delete, name='articulo_delete'),
     
     # Carrito
     path('carrito/', views.cart_detail, name='cart_detail'),
