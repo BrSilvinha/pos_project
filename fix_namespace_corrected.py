@@ -1,4 +1,105 @@
-{% extends 'base.html' %}
+#!/usr/bin/env python
+"""
+Script CORREGIDO para arreglar referencias de namespace 'core:' en templates
+Ejecutar: python fix_namespace_corrected.py
+"""
+
+import os
+import glob
+
+def fix_namespace_in_templates():
+    """Corregir referencias de namespace en todos los templates"""
+    
+    print("🔧 INICIANDO CORRECCIÓN DE NAMESPACE")
+    print("=" * 50)
+    
+    # Mapeo simple de texto a reemplazar
+    replacements = [
+        ("{% url 'core:articulos_list' %}", "{% url 'articulos_list' %}"),
+        ("{% url 'core:articulo_create' %}", "{% url 'articulo_create' %}"),
+        ("{% url 'core:articulo_detail'", "{% url 'articulo_detail'"),
+        ("{% url 'core:articulo_edit'", "{% url 'articulo_edit'"),
+        ("{% url 'core:articulo_delete'", "{% url 'articulo_delete'"),
+        ("{% url 'core:cart_detail' %}", "{% url 'cart_detail' %}"),
+        ("{% url 'core:cart_add'", "{% url 'cart_add'"),
+        ("{% url 'core:cart_remove'", "{% url 'cart_remove'"),
+        ("{% url 'core:cart_clear' %}", "{% url 'cart_clear' %}"),
+        ("{% url 'core:checkout' %}", "{% url 'checkout' %}"),
+        ("{% url 'core:order_list' %}", "{% url 'order_list' %}"),
+        ("{% url 'core:order_detail'", "{% url 'order_detail'"),
+        ("{% url 'core:dashboard' %}", "{% url 'dashboard' %}"),
+        ("{% url 'core:home' %}", "{% url 'home' %}"),
+        ("{% url 'core:profile' %}", "{% url 'profile' %}"),
+        ("{% url 'core:login' %}", "{% url 'login' %}"),
+        ("{% url 'core:logout' %}", "{% url 'logout' %}"),
+    ]
+    
+    # Buscar todos los archivos .html
+    template_files = []
+    for root, dirs, files in os.walk('.'):
+        for file in files:
+            if file.endswith('.html'):
+                template_files.append(os.path.join(root, file))
+    
+    if not template_files:
+        print("❌ No se encontraron archivos HTML")
+        return False
+    
+    archivos_corregidos = 0
+    total_cambios = 0
+    
+    for template_file in template_files:
+        print(f"\n📄 Procesando: {template_file}")
+        
+        try:
+            # Leer el archivo
+            with open(template_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            original_content = content
+            cambios_archivo = 0
+            
+            # Aplicar reemplazos
+            for old_text, new_text in replacements:
+                if old_text in content:
+                    count = content.count(old_text)
+                    content = content.replace(old_text, new_text)
+                    cambios_archivo += count
+                    if count > 0:
+                        print(f"  ✅ '{old_text}' → '{new_text}' ({count}x)")
+            
+            # Guardar si hubo cambios
+            if content != original_content:
+                with open(template_file, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                
+                archivos_corregidos += 1
+                total_cambios += cambios_archivo
+                print(f"  💾 Guardado con {cambios_archivo} cambios")
+            else:
+                print(f"  ✅ Sin cambios necesarios")
+                
+        except Exception as e:
+            print(f"  ❌ Error: {e}")
+    
+    print(f"\n{'='*50}")
+    print(f"🎉 CORRECCIÓN COMPLETADA")
+    print(f"📁 Archivos procesados: {len(template_files)}")
+    print(f"📝 Archivos corregidos: {archivos_corregidos}")
+    print(f"🔄 Total cambios: {total_cambios}")
+    
+    return archivos_corregidos > 0
+
+def create_fixed_template():
+    """Crear template correcto para crear artículos"""
+    
+    template_dir = "templates/articulos"
+    template_file = os.path.join(template_dir, "crear.html")
+    
+    # Crear directorio
+    os.makedirs(template_dir, exist_ok=True)
+    
+    template_content = """{% extends 'base.html' %}
 {% load static %}
 
 {% block title %}
@@ -150,4 +251,41 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
-{% endblock %}
+{% endblock %}"""
+    
+    try:
+        with open(template_file, 'w', encoding='utf-8') as f:
+            f.write(template_content)
+        print(f"✅ Template creado: {template_file}")
+        return True
+    except Exception as e:
+        print(f"❌ Error creando template: {e}")
+        return False
+
+def main():
+    """Función principal"""
+    
+    print("🛠️  CORRECTOR DE NAMESPACE - VERSIÓN CORREGIDA")
+    print("=" * 60)
+    
+    # 1. Crear template correcto
+    print("\n1️⃣ Creando template correcto...")
+    create_fixed_template()
+    
+    # 2. Corregir otros templates
+    print("\n2️⃣ Corrigiendo referencias en templates...")
+    success = fix_namespace_in_templates()
+    
+    print("\n" + "=" * 60)
+    print("🎉 PROCESO COMPLETADO")
+    print("\n📋 AHORA EJECUTA:")
+    print("   python manage.py runserver")
+    print("   Ve a: http://127.0.0.1:8000/articulos/crear/")
+    
+    return True
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as e:
+        print(f"❌ Error: {e}")

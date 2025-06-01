@@ -1,15 +1,12 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}
-    {% if edit_mode %}Editar{% else %}Crear{% endif %} Artículo - Sistema POS
-{% endblock %}
+{% block title %}Crear Artículo - Sistema POS{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="h3">
-        <i class="fas fa-{% if edit_mode %}edit{% else %}plus{% endif %} me-2"></i>
-        {% if edit_mode %}Editar{% else %}Crear{% endif %} Artículo
+        <i class="fas fa-plus me-2"></i>Crear Artículo
     </h2>
     <a href="{% url 'articulos_list' %}" class="btn btn-outline-secondary">
         <i class="fas fa-arrow-left me-1"></i>Volver
@@ -23,7 +20,7 @@
                 <h6 class="m-0 font-weight-bold text-primary">Información del Artículo</h6>
             </div>
             <div class="card-body">
-                <form method="post" id="articleForm">
+                <form method="post">
                     {% csrf_token %}
                     
                     <div class="row mb-3">
@@ -82,47 +79,30 @@
                         <input type="number" class="form-control" id="stock" name="stock" 
                                min="0" value="0">
                     </div>
+
+                    <div class="mb-3">
+                        <label for="precio_1" class="form-label">
+                            Precio de Venta <span class="text-danger">*</span>
+                        </label>
+                        <input type="number" class="form-control" id="precio_1" name="precio_1" 
+                               step="0.01" min="0" required placeholder="0.00">
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i>Crear Artículo
+                        </button>
+                        
+                        <a href="{% url 'articulos_list' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times me-1"></i>Cancelar
+                        </a>
+                    </div>
                 </form>
             </div>
         </div>
     </div>
-
-    <div class="col-lg-4">
-        <div class="card shadow">
-            <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">Precios</h6>
-            </div>
-            <div class="card-body">
-                <div class="mb-3">
-                    <label for="precio_1" class="form-label">
-                        Precio de Venta <span class="text-danger">*</span>
-                    </label>
-                    <input type="number" class="form-control" id="precio_1" name="precio_1" 
-                           step="0.01" min="0" required placeholder="0.00">
-                </div>
-
-                <div class="mb-3">
-                    <label for="precio_2" class="form-label">Precio 2</label>
-                    <input type="number" class="form-control" id="precio_2" name="precio_2" 
-                           step="0.01" min="0" placeholder="0.00">
-                </div>
-
-                <div class="d-grid gap-2">
-                    <button type="submit" form="articleForm" class="btn btn-primary">
-                        <i class="fas fa-save me-1"></i>Crear Artículo
-                    </button>
-                    
-                    <a href="{% url 'articulos_list' %}" class="btn btn-outline-secondary">
-                        <i class="fas fa-times me-1"></i>Cancelar
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
-{% endblock %}
 
-{% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const grupoSelect = document.getElementById('grupo');
