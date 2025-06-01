@@ -158,3 +158,11 @@ MESSAGE_TAGS = {
     messages.WARNING: 'warning',
     messages.ERROR: 'danger',
 }
+# ✅ CONFIGURACIÓN DE EMAIL
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'  # O tu proveedor SMTP
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'jhamirsilva@gmail.com'
+EMAIL_HOST_PASSWORD = 'Jhamir&12'
+DEFAULT_FROM_EMAIL = 'Sistema POS jhamirsilva@gmail.com'

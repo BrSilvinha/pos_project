@@ -31,6 +31,21 @@
                     </a>
                 </li>
                 
+                <!-- ✅ NUEVO: Dropdown de Órdenes -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="ordenesDropdown" role="button"
+                       data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-shopping-basket me-1"></i>Órdenes
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="ordenesDropdown">
+                        <li><a class="dropdown-item" href="{% url 'order_list' %}">Mis Órdenes</a></li>
+                        {% if user.is_staff %}
+                        <li><a class="dropdown-item" href="{% url 'order_list' %}?estado=1">Órdenes Pendientes</a></li>
+                        <li><a class="dropdown-item" href="{% url 'order_list' %}?estado=2">Órdenes en Proceso</a></li>
+                        {% endif %}
+                    </ul>
+                </li>
+                
                 {% if user.is_staff %}
                 <li class="nav-item">
                     <a class="nav-link" href="/admin/" target="_blank">

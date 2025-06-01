@@ -1,0 +1,193 @@
+{% extends 'base.html' %}
+{% block title %}Mis Órdenes - Sistema POS{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="h3"><i class="fas fa-shopping-basket me-2"></i>Mis Órdenes</h2>
+    <a href="{% url 'home' %}" class="btn btn-outline-primary">
+        <i class="fas fa-home me-1"></i>Inicio
+    </a>
+</div>
+
+<!-- Filtros -->
+<div class="card shadow mb-4">
+    <div class="card-header bg-white">
+        <h5 class="mb-0">Filtros</h5>
+    </div>
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-3">
+                <label for="estado" class="form-label">Estado</label>
+                <select class="form-select" id="estado" name="estado">
+                    <option value="">Todos</option>
+                    {% for value, label in estados %}
+                    <option value="{{ value }}" {% if filtros.estado == value|stringformat:"i" %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <label for="fecha_desde" class="form-label">Fecha desde</label>
+                <input type="date" class="form-control" id="fecha_desde" name="fecha_desde" value="{{ filtros.fecha_desde|date:'Y-m-d' }}">
+            </div>
+            
+            <div class="col-md-3">
+                <label for="fecha_hasta" class="form-label">Fecha hasta</label>
+                <input type="date" class="form-control" id="fecha_hasta" name="fecha_hasta" value="{{ filtros.fecha_hasta|date:'Y-m-d' }}">
+            </div>
+            
+            <div class="col-md-3 d-flex align-items-end">
+                <div class="d-grid gap-2 w-100">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search me-1"></i>Filtrar
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Listado de órdenes -->
+<div class="card shadow">
+    <div class="card-header bg-white">
+        <h5 class="mb-0">Órdenes de Compra</h5>
+    </div>
+    <div class="card-body p-0">
+        {% if ordenes %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Nº Orden</th>
+                        <th>Fecha</th>
+                        <th>Cliente</th>
+                        <th>Total</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for orden in ordenes %}
+                    <tr>
+                        <td>{{ orden.nro_pedido }}</td>
+                        <td>{{ orden.fecha_pedido }}</td>
+                        <td>{{ orden.cliente.nombres }}</td>
+                        <td>${{ orden.importe }}</td>
+                        <td>
+                            {% if orden.estado == 1 %}
+                            <span class="badge bg-warning">Pendiente</span>
+                            {% elif orden.estado == 2 %}
+                            <span class="badge bg-info">Procesando</span>
+                            {% elif orden.estado == 3 %}
+                            <span class="badge bg-success">Completada</span>
+                            {% else %}
+                            <span class="badge bg-danger">Cancelada</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group">
+                                <a href="{% url 'order_detail' orden.pedido_id %}" class="btn btn-sm btn-primary" title="Ver detalle">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{% url 'generate_pdf_order' orden.pedido_id %}" class="btn btn-sm btn-danger" target="_blank" title="Generar PDF">
+                                    <i class="fas fa-file-pdf"></i>
+                                </a>
+                                {% if orden.estado == 1 %}
+                                <a href="{% url 'cancel_order' orden.pedido_id %}" class="btn btn-sm btn-secondary" title="Cancelar orden"
+                                   onclick="return confirm('¿Está seguro de cancelar esta orden?')">
+                                    <i class="fas fa-ban"></i>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Paginación -->
+        {% if ordenes.has_other_pages %}
+        <div class="card-footer bg-white">
+            <nav aria-label="Paginación">
+                <ul class="pagination justify-content-center mb-0">
+                    {% if ordenes.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ ordenes.previous_page_number }}{% if filtros.estado %}&estado={{ filtros.estado }}{% endif %}{% if filtros.fecha_desde %}&fecha_desde={{ filtros.fecha_desde|date:'Y-m-d' }}{% endif %}{% if filtros.fecha_hasta %}&fecha_hasta={{ filtros.fecha_hasta|date:'Y-m-d' }}{% endif %}">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link"><i class="fas fa-chevron-left"></i></span>
+                    </li>
+                    {% endif %}
+                    
+                    {% for i in ordenes.paginator.page_range %}
+                    {% if ordenes.number == i %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ i }}</span>
+                    </li>
+                    {% else %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ i }}{% if filtros.estado %}&estado={{ filtros.estado }}{% endif %}{% if filtros.fecha_desde %}&fecha_desde={{ filtros.fecha_desde|date:'Y-m-d' }}{% endif %}{% if filtros.fecha_hasta %}&fecha_hasta={{ filtros.fecha_hasta|date:'Y-m-d' }}{% endif %}">{{ i }}</a>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+                    
+                    {% if ordenes.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ ordenes.next_page_number }}{% if filtros.estado %}&estado={{ filtros.estado }}{% endif %}{% if filtros.fecha_desde %}&fecha_desde={{ filtros.fecha_desde|date:'Y-m-d' }}{% endif %}{% if filtros.fecha_hasta %}&fecha_hasta={{ filtros.fecha_hasta|date:'Y-m-d' }}{% endif %}">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link"><i class="fas fa-chevron-right"></i></span>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+        
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-shopping-basket fa-4x text-muted mb-3"></i>
+            <h4>No tienes órdenes</h4>
+            <p class="text-muted">No se encontraron órdenes con los filtros seleccionados</p>
+            <a href="{% url 'articulos_list' %}" class="btn btn-primary mt-3">
+                <i class="fas fa-shopping-bag me-1"></i>Ir a Comprar
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Validación de fechas
+    const fechaDesde = document.getElementById('fecha_desde');
+    const fechaHasta = document.getElementById('fecha_hasta');
+    
+    if (fechaDesde && fechaHasta) {
+        fechaDesde.addEventListener('change', function() {
+            fechaHasta.min = this.value;
+            
+            if (fechaHasta.value && fechaHasta.value < this.value) {
+                fechaHasta.value = this.value;
+            }
+        });
+        
+        fechaHasta.addEventListener('change', function() {
+            fechaDesde.max = this.value;
+            
+            if (fechaDesde.value && fechaDesde.value > this.value) {
+                fechaDesde.value = this.value;
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

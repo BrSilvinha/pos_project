@@ -1,4 +1,4 @@
-# core/urls.py - Versión final completa
+# core/urls.py - Versión completa actualizada
 from django.urls import path
 from django.contrib.auth import views as auth_views
 from . import views
@@ -23,7 +23,17 @@ urlpatterns = [
     path('carrito/eliminar/<uuid:articulo_id>/', views.cart_remove, name='cart_remove'),
     path('carrito/vaciar/', views.cart_clear, name='cart_clear'),
     path('checkout/', views.checkout, name='checkout'),
+    
+    # Órdenes
+    path('ordenes/', views.order_list, name='order_list'),
     path('orden/<uuid:pedido_id>/', views.order_detail, name='order_detail'),
+    path('orden/cancelar/<uuid:pedido_id>/', views.cancel_order, name='cancel_order'),
+    
+    # URLs para generación de PDFs
+    path('orden/pdf/<uuid:pedido_id>/', views.generate_pdf_order, name='generate_pdf_order'),
+    
+    # Si también implementaste la versión con WeasyPrint
+    path('orden/pdf-weasy/<uuid:pedido_id>/', views.generate_pdf_order_weasy, name='generate_pdf_order_weasy'),
     
     # API endpoints
     path('api/lineas-por-grupo/<int:grupo_id>/', views.lineas_por_grupo, name='lineas_por_grupo'),
