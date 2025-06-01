@@ -310,3 +310,10 @@ def order_detail(request, pedido_id):
     except Exception as e:
         messages.error(request, f'Error al cargar orden: {str(e)}')
         return redirect('dashboard')
+
+@login_required
+def profile_view(request):
+    """Vista del perfil del usuario"""
+    return render(request, 'accounts/profile.html', {
+        'user': request.user
+    })

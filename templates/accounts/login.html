@@ -14,6 +14,17 @@
                     <p class="text-muted">Iniciar Sesión</p>
                 </div>
 
+                {% if form.errors %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        {% for field, errors in form.errors.items %}
+                            {% for error in errors %}
+                                {{ error }}
+                            {% endfor %}
+                        {% endfor %}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endif %}
+
                 {% if messages %}
                     {% for message in messages %}
                         <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
@@ -47,6 +58,12 @@
                         </button>
                     </div>
                 </form>
+                
+                <div class="text-center mt-3">
+                    <small class="text-muted">
+                        Usuario: <strong>admin</strong> | Contraseña: <strong>admin123</strong>
+                    </small>
+                </div>
             </div>
         </div>
     </div>
@@ -62,6 +79,14 @@
     .card {
         border: none;
         border-radius: 15px;
+    }
+    .form-control {
+        border-radius: 0.5rem;
+        padding: 0.75rem;
+    }
+    .form-control:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
     }
 </style>
 {% endblock %}
