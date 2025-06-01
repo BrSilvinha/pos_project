@@ -11,23 +11,43 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
-from decouple import config
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# ✅ FUNCIÓN HELPER CORREGIDA
+def get_config(key, default=None, cast=None):
+    """
+    Función helper para obtener variables de entorno
+    """
+    try:
+        from decouple import config as decouple_config
+        if cast is None:
+            return decouple_config(key, default=default)
+        else:
+            return decouple_config(key, default=default, cast=cast)
+    except ImportError:
+        value = os.environ.get(key, default)
+        if cast and value is not None:
+            if cast == bool:
+                return value.lower() in ('true', '1', 'yes', 'on')
+            elif cast == list:
+                return [s.strip() for s in value.split(',')]
+            else:
+                return cast(value)
+        return value
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config('SECRET_KEY', default='django-insecure-+a)pl$48yxx9mv+zshvj7!)q76=jmtes62&y@o5lpvrz*z$sdx')
+SECRET_KEY = get_config('SECRET_KEY', default='django-insecure-+a)pl$48yxx9mv+zshvj7!)q76=jmtes62&y@o5lpvrz*z$sdx')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config('DEBUG', default=True, cast=bool)
+DEBUG = get_config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=lambda v: [s.strip() for s in v.split(',')])
-
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '0.0.0.0']
 
 # Application definition
 
@@ -38,7 +58,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'core',  # ← Agregar nuestra app
+    'core',  # ← Nuestra app
 ]
 
 MIDDLEWARE = [
@@ -53,15 +73,15 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'pos_project.urls'
 
-# ✅ SECCIÓN CORREGIDA - Templates
+# ✅ TEMPLATES
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],  # ← ¡ESTA ERA LA LÍNEA QUE FALTABA!
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
-                'django.template.context_processors.debug',  # ← Agregado
+                'django.template.context_processors.debug',
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
@@ -72,30 +92,31 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'pos_project.wsgi.application'
 
-
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME', default='dbpedidos_silva'),
-        'USER': config('DB_USER', default='admin_silva'),
-        'PASSWORD': config('DB_PASSWORD', default='71749437'),
-        'HOST': config('DB_HOST', default='127.0.0.1'),
-        'PORT': config('DB_PORT', default='5432'),
+# ✅ CONFIGURACIÓN DE BASE DE DATOS SIMPLIFICADA
+DB_ENGINE = get_config('DB_ENGINE', default='sqlite')
+
+if DB_ENGINE == 'postgresql':
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': get_config('DB_NAME', default='dbpedidos_silva'),
+            'USER': get_config('DB_USER', default='admin_silva'),
+            'PASSWORD': get_config('DB_PASSWORD', default='71749437'),
+            'HOST': get_config('DB_HOST', default='127.0.0.1'),
+            'PORT': get_config('DB_PORT', default='5432'),
+        }
     }
-}
-
-# Configuración alternativa para SQLite (desarrollo)
-# Descomenta estas líneas si quieres usar SQLite en lugar de PostgreSQL
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
-
+else:
+    # SQLite como default (más simple)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -115,28 +136,25 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = 'es-es'  # ← Cambiado a español
-TIME_ZONE = 'America/Lima'  # ← Cambiado a Perú
+LANGUAGE_CODE = 'es-es'
+TIME_ZONE = 'America/Lima'
 
 USE_I18N = True
 USE_TZ = True
 
-
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-# ✅ CONFIGURACIÓN COMPLETA DE ARCHIVOS ESTÁTICOS
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# ✅ CONFIGURACIÓN DE ARCHIVOS MEDIA
+# Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
@@ -156,8 +174,8 @@ LOGOUT_REDIRECT_URL = 'login'
 # ✅ CONFIGURACIÓN DE SESIONES PARA EL CARRITO
 SESSION_COOKIE_AGE = 1209600  # 2 semanas en segundos
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
-SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)  # True en producción con HTTPS
-SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Almacenar en la base de datos
+SESSION_COOKIE_SECURE = get_config('SESSION_COOKIE_SECURE', default=False, cast=bool)
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 
 # ✅ CONFIGURACIÓN DE MENSAJES
 from django.contrib.messages import constants as messages
@@ -171,12 +189,12 @@ MESSAGE_TAGS = {
 
 # ✅ CONFIGURACIÓN DE EMAIL
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'  # O tu proveedor SMTP
+EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='jhamirsilva@gmail.com')
-EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='Jhamir&12')
-DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='Sistema POS jhamirsilva@gmail.com')
+EMAIL_HOST_USER = get_config('EMAIL_HOST_USER', default='jhamirsilva@gmail.com')
+EMAIL_HOST_PASSWORD = get_config('EMAIL_HOST_PASSWORD', default='Jhamir&12')
+DEFAULT_FROM_EMAIL = get_config('DEFAULT_FROM_EMAIL', default='Sistema POS <jhamirsilva@gmail.com>')
 
 # ✅ CONFIGURACIÓN DE SEGURIDAD PARA PRODUCCIÓN
 if not DEBUG:
@@ -188,7 +206,7 @@ if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    
+
 # ✅ CONFIGURACIÓN DE LOGGING
 LOGGING = {
     'version': 1,

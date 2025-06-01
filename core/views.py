@@ -22,13 +22,16 @@ from reportlab.platypus import Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from io import BytesIO
 
-# Para WeasyPrint
+# Para WeasyPrint - Opcional (puede fallar en Windows)
 try:
     from weasyprint import HTML
     from weasyprint.text.fonts import FontConfiguration
     WEASYPRINT_AVAILABLE = True
-except ImportError:
+    print("✅ WeasyPrint disponible")
+except (ImportError, OSError) as e:
     WEASYPRINT_AVAILABLE = False
+    print(f"⚠️  WeasyPrint no disponible: {e}")
+    print("📄 Usando solo ReportLab para generar PDFs")
 
 import tempfile
 import os
@@ -673,7 +676,7 @@ def generate_pdf_order(request, pedido_id):
 def generate_pdf_order_weasy(request, pedido_id):
     """Generar PDF para una orden usando WeasyPrint (HTML a PDF)"""
     if not WEASYPRINT_AVAILABLE:
-        messages.error(request, 'WeasyPrint no está disponible. Usa la versión ReportLab.')
+        messages.error(request, 'WeasyPrint no está disponible en este sistema. Usa la versión ReportLab.')
         return redirect('generate_pdf_order', pedido_id=pedido_id)
     
     orden = get_object_or_404(OrdenCompraCliente, pedido_id=pedido_id)
@@ -683,22 +686,26 @@ def generate_pdf_order_weasy(request, pedido_id):
         messages.error(request, 'No tienes permiso para ver esta orden.')
         return redirect('dashboard')
     
-    # Renderizar el HTML
-    html_string = render_to_string('pdf/order_template.html', {
-        'orden': orden,
-        'items': orden.items_orden_compra.all(),
-        'fecha_generacion': timezone.now(),
-    })
-    
-    # Configuración de fuentes
-    font_config = FontConfiguration()
-    
-    # Crear el PDF
-    html = HTML(string=html_string, base_url=request.build_absolute_uri('/'))
-    result = html.write_pdf(font_config=font_config)
-    
-    # Crear respuesta HTTP
-    response = HttpResponse(result, content_type='application/pdf')
-    response['Content-Disposition'] = f'inline; filename="orden_{orden.nro_pedido}.pdf"'
-    
-    return response
+    try:
+        # Renderizar el HTML
+        html_string = render_to_string('pdf/order_template.html', {
+            'orden': orden,
+            'items': orden.items_orden_compra.all(),
+            'fecha_generacion': timezone.now(),
+        })
+        
+        # Configuración de fuentes
+        font_config = FontConfiguration()
+        
+        # Crear el PDF
+        html = HTML(string=html_string, base_url=request.build_absolute_uri('/'))
+        result = html.write_pdf(font_config=font_config)
+        
+        # Crear respuesta HTTP
+        response = HttpResponse(result, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="orden_{orden.nro_pedido}.pdf"'
+        
+        return response
+    except Exception as e:
+        messages.error(request, f'Error generando PDF con WeasyPrint: {str(e)}. Usa la versión ReportLab.')
+        return redirect('generate_pdf_order', pedido_id=pedido_id)

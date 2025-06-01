@@ -1,6 +1,7 @@
 # core/forms.py
 from django import forms
 from .models import Articulo, GrupoArticulo, LineaArticulo, ListaPrecio
+from pos_project.choices import EstadoEntidades
 
 class ArticuloForm(forms.ModelForm):
     class Meta:
@@ -39,13 +40,13 @@ class ArticuloForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Filtrar solo grupos activos
-        self.fields['grupo'].queryset = GrupoArticulo.objects.filter(estado='A')
+        # ✅ CORREGIDO: Usar EstadoEntidades.ACTIVO en lugar de 'A'
+        self.fields['grupo'].queryset = GrupoArticulo.objects.filter(estado=EstadoEntidades.ACTIVO)
         
         # Si hay una instancia, filtrar líneas por grupo
         if self.instance.pk:
             self.fields['linea'].queryset = LineaArticulo.objects.filter(
-                grupo=self.instance.grupo, estado='A'
+                grupo=self.instance.grupo, estado=EstadoEntidades.ACTIVO
             )
         else:
             self.fields['linea'].queryset = LineaArticulo.objects.none()
@@ -108,4 +109,5 @@ class LineaArticuloForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['grupo'].queryset = GrupoArticulo.objects.filter(estado='A')
+        # ✅ CORREGIDO: Usar EstadoEntidades.ACTIVO en lugar de 'A'
+        self.fields['grupo'].queryset = GrupoArticulo.objects.filter(estado=EstadoEntidades.ACTIVO)
