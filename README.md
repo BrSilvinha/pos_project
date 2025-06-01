@@ -520,14 +520,6 @@ The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software.
 ```
 
-## 📞 Contacto y Soporte
-
-- **Desarrollador**: Tu Nombre
-- **Email**: tu.email@ejemplo.com
-- **LinkedIn**: [tu-perfil](https://linkedin.com/in/tu-perfil)
-- **GitHub**: [tu-usuario](https://github.com/tu-usuario)
-- **Issues**: [Reportar problemas](https://github.com/tu-usuario/sistema-pos/issues)
-
 ## 🙏 Agradecimientos
 
 - **Django Community** - Por el excelente framework web
