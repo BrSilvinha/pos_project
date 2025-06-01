@@ -145,77 +145,118 @@ def articulo_detail(request, articulo_id):
     }
     
     return render(request, 'core/articulos/detail.html', context)
-
 @login_required
 def articulo_create(request):
-    """Vista para crear un nuevo artículo - COMPLETAMENTE SEGURA"""
+    """Vista 100% segura para crear artículos"""
     
     if request.method == 'POST':
-        form = ArticuloForm(request.POST)
-        precio_form = ListaPrecioForm(request.POST)
-        
-        if form.is_valid() and precio_form.is_valid():
+        try:
+            # Obtener datos del formulario de manera manual y segura
+            codigo_articulo = request.POST.get('codigo_articulo', '').strip()
+            codigo_barras = request.POST.get('codigo_barras', '').strip()
+            descripcion = request.POST.get('descripcion', '').strip()
+            presentacion = request.POST.get('presentacion', '').strip()
+            grupo_id = request.POST.get('grupo', '')
+            linea_id = request.POST.get('linea', '')
+            stock = request.POST.get('stock', 0)
+            precio_1 = request.POST.get('precio_1', 0)
+            precio_2 = request.POST.get('precio_2', None)
+            
+            # Validaciones básicas
+            if not codigo_articulo:
+                messages.error(request, 'El código del artículo es obligatorio.')
+                return redirect('articulo_create')
+            
+            if not descripcion:
+                messages.error(request, 'La descripción es obligatoria.')
+                return redirect('articulo_create')
+            
+            if not grupo_id:
+                messages.error(request, 'Debe seleccionar un grupo.')
+                return redirect('articulo_create')
+            
+            if not linea_id:
+                messages.error(request, 'Debe seleccionar una línea.')
+                return redirect('articulo_create')
+            
+            # Verificar que el código no exista
+            if Articulo.objects.filter(codigo_articulo=codigo_articulo).exists():
+                messages.error(request, 'Ya existe un artículo con ese código.')
+                return redirect('articulo_create')
+            
+            # Obtener objetos relacionados
             try:
-                with transaction.atomic():
-                    # Guardar el artículo
-                    articulo = form.save()
-                    
-                    # Guardar el precio
-                    precio = precio_form.save(commit=False)
-                    precio.articulo = articulo
-                    precio.save()
-                    
-                    messages.success(request, f'Artículo "{articulo.descripcion}" creado exitosamente.')
-                    return redirect('articulo_detail', articulo_id=articulo.articulo_id)
-                    
-            except Exception as e:
-                messages.error(request, f'Error al crear el artículo: {str(e)}')
-        else:
-            # Mostrar errores específicos
-            for field, errors in form.errors.items():
-                for error in errors:
-                    messages.error(request, f'Error en {field}: {error}')
-            for field, errors in precio_form.errors.items():
-                for error in errors:
-                    messages.error(request, f'Error en precio {field}: {error}')
-    else:
-        # GET request - Formularios vacíos
-        form = ArticuloForm()
-        precio_form = ListaPrecioForm()
+                grupo = GrupoArticulo.objects.get(grupo_id=grupo_id)
+                linea = LineaArticulo.objects.get(linea_id=linea_id)
+            except (GrupoArticulo.DoesNotExist, LineaArticulo.DoesNotExist):
+                messages.error(request, 'Grupo o línea no válidos.')
+                return redirect('articulo_create')
+            
+            # Crear el artículo de manera segura
+            with transaction.atomic():
+                articulo = Articulo.objects.create(
+                    codigo_articulo=codigo_articulo,
+                    codigo_barras=codigo_barras if codigo_barras else None,
+                    descripcion=descripcion,
+                    presentacion=presentacion if presentacion else None,
+                    grupo=grupo,
+                    linea=linea,
+                    stock=int(stock) if stock else 0,
+                    estado=EstadoEntidades.ACTIVO
+                )
+                
+                # Crear precio
+                ListaPrecio.objects.create(
+                    articulo=articulo,
+                    precio_1=float(precio_1) if precio_1 else 0,
+                    precio_2=float(precio_2) if precio_2 else None,
+                    estado=EstadoEntidades.ACTIVO
+                )
+                
+                messages.success(request, f'Artículo "{articulo.descripcion}" creado exitosamente.')
+                return redirect('articulo_detail', articulo_id=articulo.articulo_id)
+        
+        except Exception as e:
+            messages.error(request, f'Error al crear artículo: {str(e)}')
+            return redirect('articulo_create')
     
-    # Obtener grupos activos de forma segura
+    # GET request - Renderizar formulario SIN OBJETOS PROBLEMÁTICOS
     try:
-        grupos = GrupoArticulo.objects.filter(estado=EstadoEntidades.ACTIVO).order_by('nombre_grupo')
+        # Obtener grupos activos
+        grupos = list(GrupoArticulo.objects.filter(estado=EstadoEntidades.ACTIVO).values(
+            'grupo_id', 'nombre_grupo'
+        ))
         
         # Si no hay grupos, crear uno por defecto
-        if not grupos.exists():
-            grupo_default = GrupoArticulo.objects.create(
+        if not grupos:
+            grupo = GrupoArticulo.objects.create(
                 nombre_grupo='General',
                 estado=EstadoEntidades.ACTIVO
             )
-            # Crear línea por defecto
             LineaArticulo.objects.create(
                 nombre_linea='General',
-                grupo=grupo_default,
+                grupo=grupo,
                 estado=EstadoEntidades.ACTIVO
             )
-            grupos = GrupoArticulo.objects.filter(estado=EstadoEntidades.ACTIVO)
+            grupos = list(GrupoArticulo.objects.filter(estado=EstadoEntidades.ACTIVO).values(
+                'grupo_id', 'nombre_grupo'
+            ))
             messages.info(request, 'Se creó un grupo "General" por defecto.')
-            
+        
     except Exception as e:
-        messages.error(request, f'Error accediendo a grupos: {str(e)}')
+        messages.error(request, f'Error cargando grupos: {str(e)}')
         grupos = []
     
-    # Contexto completamente seguro
+    # Contexto 100% seguro - SIN OBJETOS ARTICULO
     context = {
-        'form': form,
-        'precio_form': precio_form,
         'grupos': grupos,
-        'edit_mode': False,
-        'articulo': None,  # Importante: No hay artículo en creación
+        'edit_mode': False,  # Modo creación
+        'articulo': None,    # IMPORTANTE: No pasar ningún objeto artículo
+        'form_data': {},     # Datos vacíos para el formulario
     }
     
-    return render(request, 'core/articulos/form.html', context)
+    # Usar template simple y seguro
+    return render(request, 'articulos/crear.html', context)
 
 @login_required
 def articulo_edit(request, articulo_id):
