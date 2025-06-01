@@ -1,4 +1,4 @@
-# core/views.py - Archivo completo con todas las vistas
+# core/views.py - ARCHIVO COMPLETO Y CORREGIDO
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
@@ -7,12 +7,16 @@ from django.views.decorators.http import require_POST
 from django.http import JsonResponse, HttpResponse
 from django.core.paginator import Paginator
 from django.db.models import Q
+from django.core.exceptions import ObjectDoesNotExist
+from django.db import transaction
 from django.core.mail import send_mail, EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.conf import settings
 from django.utils import timezone
 import datetime
+from decimal import Decimal
+import uuid
 
 # Para PDFs
 from reportlab.pdfgen import canvas
@@ -22,20 +26,7 @@ from reportlab.platypus import Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from io import BytesIO
 
-# Para WeasyPrint - Opcional (puede fallar en Windows)
-try:
-    from weasyprint import HTML
-    from weasyprint.text.fonts import FontConfiguration
-    WEASYPRINT_AVAILABLE = True
-    print("✅ WeasyPrint disponible")
-except (ImportError, OSError) as e:
-    WEASYPRINT_AVAILABLE = False
-    print(f"⚠️  WeasyPrint no disponible: {e}")
-    print("📄 Usando solo ReportLab para generar PDFs")
-
-import tempfile
-import os
-
+# Importar modelos
 from .models import (
     Articulo, GrupoArticulo, LineaArticulo, ListaPrecio,
     Cliente, Vendedor, OrdenCompraCliente, ItemOrdenCompraCliente,
@@ -44,7 +35,6 @@ from .models import (
 from pos_project.choices import EstadoOrden, EstadoEntidades
 from .cart import Cart
 from .forms import ArticuloForm, ListaPrecioForm
-import uuid
 
 # ========================================
 # VISTA DEL DASHBOARD
@@ -54,11 +44,14 @@ import uuid
 def dashboard(request):
     """Vista principal del dashboard"""
     
-    # Estadísticas generales
-    total_articulos = Articulo.objects.filter(estado=EstadoEntidades.ACTIVO).count()
-    total_clientes = Cliente.objects.filter(estado=EstadoEntidades.ACTIVO).count()
-    ordenes_pendientes = OrdenCompraCliente.objects.filter(estado=EstadoOrden.PENDIENTE).count()
-    bajo_stock = Articulo.objects.filter(stock__lt=10, estado=EstadoEntidades.ACTIVO).count()
+    try:
+        total_articulos = Articulo.objects.filter(estado=EstadoEntidades.ACTIVO).count()
+        total_clientes = Cliente.objects.filter(estado=EstadoEntidades.ACTIVO).count()
+        ordenes_pendientes = OrdenCompraCliente.objects.filter(estado=EstadoOrden.PENDIENTE).count()
+        bajo_stock = Articulo.objects.filter(stock__lt=10, estado=EstadoEntidades.ACTIVO).count()
+    except Exception as e:
+        messages.error(request, f'Error cargando estadísticas: {str(e)}')
+        total_articulos = total_clientes = ordenes_pendientes = bajo_stock = 0
     
     context = {
         'total_articulos': total_articulos,
@@ -86,27 +79,35 @@ def profile_view(request):
 def articulos_list(request):
     """Vista para listar artículos con búsqueda y paginación"""
     
-    # Obtener todos los artículos activos
-    articulos_list = Articulo.objects.filter(estado=EstadoEntidades.ACTIVO).order_by('-fecha_creacion')
-    
-    # Búsqueda
-    search_query = request.GET.get('q')
-    if search_query:
-        articulos_list = articulos_list.filter(
-            Q(descripcion__icontains=search_query) |
-            Q(codigo_articulo__icontains=search_query) |
-            Q(codigo_barras__icontains=search_query)
-        )
-    
-    # Filtro por stock bajo
-    stock_filter = request.GET.get('stock')
-    if stock_filter == 'bajo':
-        articulos_list = articulos_list.filter(stock__lt=10)
-    
-    # Paginación
-    paginator = Paginator(articulos_list, 12)  # 12 artículos por página
-    page_number = request.GET.get('page')
-    articulos = paginator.get_page(page_number)
+    try:
+        # Usar select_related para optimizar consultas
+        articulos_list = Articulo.objects.filter(
+            estado=EstadoEntidades.ACTIVO
+        ).select_related('grupo', 'linea').order_by('-fecha_creacion')
+        
+        # Búsqueda
+        search_query = request.GET.get('q')
+        if search_query:
+            articulos_list = articulos_list.filter(
+                Q(descripcion__icontains=search_query) |
+                Q(codigo_articulo__icontains=search_query) |
+                Q(codigo_barras__icontains=search_query)
+            )
+        
+        # Filtro por stock bajo
+        stock_filter = request.GET.get('stock')
+        if stock_filter == 'bajo':
+            articulos_list = articulos_list.filter(stock__lt=10)
+        
+        # Paginación
+        paginator = Paginator(articulos_list, 12)
+        page_number = request.GET.get('page')
+        articulos = paginator.get_page(page_number)
+        
+    except Exception as e:
+        messages.error(request, f'Error cargando artículos: {str(e)}')
+        articulos = []
+        search_query = ''
     
     context = {
         'articulos': articulos,
@@ -119,13 +120,24 @@ def articulos_list(request):
 def articulo_detail(request, articulo_id):
     """Vista para ver detalle de un artículo"""
     
-    articulo = get_object_or_404(Articulo, articulo_id=articulo_id, estado=EstadoEntidades.ACTIVO)
-    
-    # Productos relacionados (misma línea)
-    productos_relacionados = Articulo.objects.filter(
-        linea=articulo.linea,
-        estado=EstadoEntidades.ACTIVO
-    ).exclude(articulo_id=articulo_id)[:4]
+    try:
+        articulo = get_object_or_404(
+            Articulo.objects.select_related('grupo', 'linea'),
+            articulo_id=articulo_id, 
+            estado=EstadoEntidades.ACTIVO
+        )
+        
+        # Productos relacionados (misma línea) - manejo seguro
+        productos_relacionados = []
+        if hasattr(articulo, 'linea') and articulo.linea:
+            productos_relacionados = Articulo.objects.filter(
+                linea=articulo.linea,
+                estado=EstadoEntidades.ACTIVO
+            ).exclude(articulo_id=articulo_id).select_related('grupo', 'linea')[:4]
+        
+    except Exception as e:
+        messages.error(request, f'Error cargando artículo: {str(e)}')
+        return redirect('articulos_list')
     
     context = {
         'articulo': articulo,
@@ -136,7 +148,7 @@ def articulo_detail(request, articulo_id):
 
 @login_required
 def articulo_create(request):
-    """Vista para crear un nuevo artículo"""
+    """Vista para crear un nuevo artículo - COMPLETAMENTE SEGURA"""
     
     if request.method == 'POST':
         form = ArticuloForm(request.POST)
@@ -144,38 +156,87 @@ def articulo_create(request):
         
         if form.is_valid() and precio_form.is_valid():
             try:
-                # Guardar el artículo
-                articulo = form.save()
-                
-                # Guardar el precio
-                precio = precio_form.save(commit=False)
-                precio.articulo = articulo
-                precio.save()
-                
-                messages.success(request, f'Artículo "{articulo.descripcion}" creado exitosamente.')
-                return redirect('articulo_detail', articulo_id=articulo.articulo_id)
-                
+                with transaction.atomic():
+                    # Guardar el artículo
+                    articulo = form.save()
+                    
+                    # Guardar el precio
+                    precio = precio_form.save(commit=False)
+                    precio.articulo = articulo
+                    precio.save()
+                    
+                    messages.success(request, f'Artículo "{articulo.descripcion}" creado exitosamente.')
+                    return redirect('articulo_detail', articulo_id=articulo.articulo_id)
+                    
             except Exception as e:
                 messages.error(request, f'Error al crear el artículo: {str(e)}')
         else:
-            messages.error(request, 'Por favor corrige los errores en el formulario.')
+            # Mostrar errores específicos
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f'Error en {field}: {error}')
+            for field, errors in precio_form.errors.items():
+                for error in errors:
+                    messages.error(request, f'Error en precio {field}: {error}')
     else:
+        # GET request - Formularios vacíos
         form = ArticuloForm()
         precio_form = ListaPrecioForm()
     
+    # Obtener grupos activos de forma segura
+    try:
+        grupos = GrupoArticulo.objects.filter(estado=EstadoEntidades.ACTIVO).order_by('nombre_grupo')
+        
+        # Si no hay grupos, crear uno por defecto
+        if not grupos.exists():
+            grupo_default = GrupoArticulo.objects.create(
+                nombre_grupo='General',
+                estado=EstadoEntidades.ACTIVO
+            )
+            # Crear línea por defecto
+            LineaArticulo.objects.create(
+                nombre_linea='General',
+                grupo=grupo_default,
+                estado=EstadoEntidades.ACTIVO
+            )
+            grupos = GrupoArticulo.objects.filter(estado=EstadoEntidades.ACTIVO)
+            messages.info(request, 'Se creó un grupo "General" por defecto.')
+            
+    except Exception as e:
+        messages.error(request, f'Error accediendo a grupos: {str(e)}')
+        grupos = []
+    
+    # Contexto completamente seguro
     context = {
         'form': form,
         'precio_form': precio_form,
+        'grupos': grupos,
+        'edit_mode': False,
+        'articulo': None,  # Importante: No hay artículo en creación
     }
     
     return render(request, 'core/articulos/form.html', context)
 
 @login_required
 def articulo_edit(request, articulo_id):
-    """Vista para editar un artículo"""
+    """Vista para editar un artículo - CORREGIDA"""
     
-    articulo = get_object_or_404(Articulo, articulo_id=articulo_id)
-    precio = articulo.precios.first()
+    try:
+        articulo = get_object_or_404(
+            Articulo.objects.select_related('grupo', 'linea'),
+            articulo_id=articulo_id
+        )
+        
+        # Obtener precio de forma segura
+        precio = None
+        try:
+            precio = articulo.precios.first()
+        except:
+            pass
+        
+    except Exception as e:
+        messages.error(request, f'Error cargando artículo: {str(e)}')
+        return redirect('articulos_list')
     
     if request.method == 'POST':
         form = ArticuloForm(request.POST, instance=articulo)
@@ -183,20 +244,21 @@ def articulo_edit(request, articulo_id):
         
         if form.is_valid() and precio_form.is_valid():
             try:
-                # Actualizar el artículo
-                articulo = form.save()
-                
-                # Actualizar o crear el precio
-                if precio:
-                    precio_form.save()
-                else:
-                    nuevo_precio = precio_form.save(commit=False)
-                    nuevo_precio.articulo = articulo
-                    nuevo_precio.save()
-                
-                messages.success(request, f'Artículo "{articulo.descripcion}" actualizado exitosamente.')
-                return redirect('articulo_detail', articulo_id=articulo.articulo_id)
-                
+                with transaction.atomic():
+                    # Actualizar el artículo
+                    articulo = form.save()
+                    
+                    # Actualizar o crear el precio
+                    if precio:
+                        precio_form.save()
+                    else:
+                        nuevo_precio = precio_form.save(commit=False)
+                        nuevo_precio.articulo = articulo
+                        nuevo_precio.save()
+                    
+                    messages.success(request, f'Artículo "{articulo.descripcion}" actualizado exitosamente.')
+                    return redirect('articulo_detail', articulo_id=articulo.articulo_id)
+                    
             except Exception as e:
                 messages.error(request, f'Error al actualizar el artículo: {str(e)}')
         else:
@@ -205,10 +267,19 @@ def articulo_edit(request, articulo_id):
         form = ArticuloForm(instance=articulo)
         precio_form = ListaPrecioForm(instance=precio)
     
+    # Obtener grupos activos
+    try:
+        grupos = GrupoArticulo.objects.filter(estado=EstadoEntidades.ACTIVO).order_by('nombre_grupo')
+    except Exception as e:
+        messages.error(request, f'Error cargando grupos: {str(e)}')
+        grupos = []
+    
     context = {
         'form': form,
         'precio_form': precio_form,
         'articulo': articulo,
+        'grupos': grupos,
+        'edit_mode': True,
     }
     
     return render(request, 'core/articulos/form.html', context)
@@ -217,7 +288,11 @@ def articulo_edit(request, articulo_id):
 def articulo_delete(request, articulo_id):
     """Vista para eliminar un artículo"""
     
-    articulo = get_object_or_404(Articulo, articulo_id=articulo_id)
+    try:
+        articulo = get_object_or_404(Articulo, articulo_id=articulo_id)
+    except Exception as e:
+        messages.error(request, f'Error: {str(e)}')
+        return redirect('articulos_list')
     
     if request.method == 'POST':
         try:
@@ -249,14 +324,13 @@ def cart_detail(request):
 def cart_add(request, articulo_id):
     """Vista para agregar productos al carrito"""
     
-    cart = Cart(request)
-    articulo = get_object_or_404(Articulo, articulo_id=articulo_id)
-    
     try:
+        cart = Cart(request)
+        articulo = get_object_or_404(Articulo, articulo_id=articulo_id)
+        
         cantidad = int(request.POST.get('cantidad', 1))
         update_cantidad = request.POST.get('update', False)
         
-        # Validar stock disponible
         if cantidad > articulo.stock:
             messages.error(request, f'Stock insuficiente. Disponible: {articulo.stock}')
         else:
@@ -278,11 +352,15 @@ def cart_add(request, articulo_id):
 def cart_remove(request, articulo_id):
     """Vista para eliminar productos del carrito"""
     
-    cart = Cart(request)
-    articulo = get_object_or_404(Articulo, articulo_id=articulo_id)
-    
-    cart.remove(articulo)
-    messages.success(request, f'"{articulo.descripcion}" eliminado del carrito.')
+    try:
+        cart = Cart(request)
+        articulo = get_object_or_404(Articulo, articulo_id=articulo_id)
+        
+        cart.remove(articulo)
+        messages.success(request, f'"{articulo.descripcion}" eliminado del carrito.')
+        
+    except Exception as e:
+        messages.error(request, f'Error: {str(e)}')
     
     return redirect('cart_detail')
 
@@ -290,9 +368,12 @@ def cart_remove(request, articulo_id):
 def cart_clear(request):
     """Vista para vaciar el carrito"""
     
-    cart = Cart(request)
-    cart.clear()
-    messages.success(request, 'Carrito vaciado.')
+    try:
+        cart = Cart(request)
+        cart.clear()
+        messages.success(request, 'Carrito vaciado.')
+    except Exception as e:
+        messages.error(request, f'Error: {str(e)}')
     
     return redirect('cart_detail')
 
@@ -315,9 +396,19 @@ def checkout(request):
         tipo_id = TipoIdentificacion.objects.filter(estado=EstadoEntidades.ACTIVO).first()
         canal = CanalCliente.objects.filter(estado=EstadoEntidades.ACTIVO).first()
         
-        if not tipo_id or not canal:
-            messages.error(request, 'Configuración incompleta. Contacta al administrador.')
-            return redirect('cart_detail')
+        if not tipo_id:
+            # Crear tipo de identificación por defecto
+            tipo_id = TipoIdentificacion.objects.create(
+                nombre_tipo_identificacion='DNI',
+                estado=EstadoEntidades.ACTIVO
+            )
+        
+        if not canal:
+            # Crear canal por defecto
+            canal = CanalCliente.objects.create(
+                nombre_canal='Presencial',
+                estado=EstadoEntidades.ACTIVO
+            )
         
         cliente, created = Cliente.objects.get_or_create(
             correo_electronico=request.user.email,
@@ -336,54 +427,52 @@ def checkout(request):
     
     if request.method == 'POST':
         try:
-            # Obtener vendedor predeterminado
+            # Obtener o crear vendedor
             vendedor = Vendedor.objects.filter(estado=EstadoEntidades.ACTIVO).first()
             if not vendedor:
-                messages.error(request, 'No hay vendedores disponibles.')
-                return redirect('cart_detail')
+                vendedor = Vendedor.objects.create(
+                    nombres='Vendedor Predeterminado',
+                    correo_electronico='vendedor@sistema.com',
+                    estado=EstadoEntidades.ACTIVO
+                )
             
-            # Crear la orden
-            orden = OrdenCompraCliente.objects.create(
-                cliente=cliente,
-                vendedor=vendedor,
-                estado=EstadoOrden.PENDIENTE,
-                notas=request.POST.get('notas', ''),
-                creado_por=request.user
-            )
-            
-            # Crear los items de la orden
-            item_numero = 1
-            for item in cart:
-                ItemOrdenCompraCliente.objects.create(
-                    pedido=orden,
-                    nro_item=item_numero,
-                    articulo=item['articulo'],
-                    cantidad=item['cantidad'],
-                    precio_unitario=item['precio'],
+            with transaction.atomic():
+                # Crear la orden
+                orden = OrdenCompraCliente.objects.create(
+                    cliente=cliente,
+                    vendedor=vendedor,
+                    estado=EstadoOrden.PENDIENTE,
+                    notas=request.POST.get('notas', ''),
                     creado_por=request.user
                 )
                 
-                # Actualizar stock
-                articulo = item['articulo']
-                articulo.stock -= item['cantidad']
-                articulo.save()
+                # Crear los items de la orden
+                item_numero = 1
+                for item in cart:
+                    ItemOrdenCompraCliente.objects.create(
+                        pedido=orden,
+                        nro_item=item_numero,
+                        articulo=item['articulo'],
+                        cantidad=item['cantidad'],
+                        precio_unitario=item['precio'],
+                        creado_por=request.user
+                    )
+                    
+                    # Actualizar stock
+                    articulo = item['articulo']
+                    articulo.stock -= item['cantidad']
+                    articulo.save()
+                    
+                    item_numero += 1
                 
-                item_numero += 1
-            
-            # Actualizar total de la orden
-            orden.actualizar_total()
-            
-            # Limpiar carrito
-            cart.clear()
-            
-            # Enviar email de confirmación
-            try:
-                send_order_confirmation_email(orden)
-                messages.success(request, f'¡Orden #{orden.nro_pedido} creada exitosamente! Se ha enviado un email de confirmación.')
-            except Exception as e:
-                messages.warning(request, f'Orden creada pero no se pudo enviar email: {str(e)}')
-            
-            return redirect('order_detail', pedido_id=orden.pedido_id)
+                # Actualizar total de la orden
+                orden.actualizar_total()
+                
+                # Limpiar carrito
+                cart.clear()
+                
+                messages.success(request, f'¡Orden #{orden.nro_pedido} creada exitosamente!')
+                return redirect('order_detail', pedido_id=orden.pedido_id)
             
         except Exception as e:
             messages.error(request, f'Error al procesar la orden: {str(e)}')
@@ -400,11 +489,16 @@ def checkout(request):
 def order_detail(request, pedido_id):
     """Vista para ver detalle de una orden"""
     
-    orden = get_object_or_404(OrdenCompraCliente, pedido_id=pedido_id)
-    
-    # Verificar que el usuario puede ver esta orden
-    if not request.user.is_staff and orden.cliente.correo_electronico != request.user.email:
-        messages.error(request, 'No tienes permiso para ver esta orden.')
+    try:
+        orden = get_object_or_404(OrdenCompraCliente, pedido_id=pedido_id)
+        
+        # Verificar que el usuario puede ver esta orden
+        if not request.user.is_staff and orden.cliente.correo_electronico != request.user.email:
+            messages.error(request, 'No tienes permiso para ver esta orden.')
+            return redirect('dashboard')
+        
+    except Exception as e:
+        messages.error(request, f'Error: {str(e)}')
         return redirect('dashboard')
     
     context = {
@@ -417,45 +511,44 @@ def order_detail(request, pedido_id):
 def order_list(request):
     """Vista para listar órdenes de compra"""
     
-    # Determinar si el usuario es staff (puede ver todas las órdenes) o no (solo ve las suyas)
-    if request.user.is_staff:
-        ordenes_list = OrdenCompraCliente.objects.all().order_by('-fecha_creacion')
-    else:
-        # Buscar cliente asociado al usuario actual
-        try:
+    try:
+        if request.user.is_staff:
+            ordenes_list = OrdenCompraCliente.objects.all().order_by('-fecha_creacion')
+        else:
             clientes = Cliente.objects.filter(correo_electronico=request.user.email)
             ordenes_list = OrdenCompraCliente.objects.filter(cliente__in=clientes).order_by('-fecha_creacion')
-        except:
-            messages.error(request, "No se encontraron órdenes asociadas a tu cuenta.")
-            return redirect('dashboard')
+        
+        # Filtros
+        estado = request.GET.get('estado')
+        if estado and estado.isdigit():
+            ordenes_list = ordenes_list.filter(estado=int(estado))
+        
+        fecha_desde = request.GET.get('fecha_desde')
+        if fecha_desde:
+            try:
+                fecha_desde = datetime.datetime.strptime(fecha_desde, '%Y-%m-%d').date()
+                ordenes_list = ordenes_list.filter(fecha_pedido__gte=fecha_desde)
+            except:
+                pass
+        
+        fecha_hasta = request.GET.get('fecha_hasta')
+        if fecha_hasta:
+            try:
+                fecha_hasta = datetime.datetime.strptime(fecha_hasta, '%Y-%m-%d').date()
+                ordenes_list = ordenes_list.filter(fecha_pedido__lte=fecha_hasta)
+            except:
+                pass
+        
+        # Paginación
+        paginator = Paginator(ordenes_list, 10)
+        page_number = request.GET.get('page')
+        ordenes = paginator.get_page(page_number)
+        
+    except Exception as e:
+        messages.error(request, f'Error cargando órdenes: {str(e)}')
+        ordenes = []
+        estado = fecha_desde = fecha_hasta = None
     
-    # Filtros
-    estado = request.GET.get('estado')
-    if estado and estado.isdigit():
-        ordenes_list = ordenes_list.filter(estado=int(estado))
-    
-    fecha_desde = request.GET.get('fecha_desde')
-    if fecha_desde:
-        try:
-            fecha_desde = datetime.datetime.strptime(fecha_desde, '%Y-%m-%d').date()
-            ordenes_list = ordenes_list.filter(fecha_pedido__gte=fecha_desde)
-        except:
-            pass
-    
-    fecha_hasta = request.GET.get('fecha_hasta')
-    if fecha_hasta:
-        try:
-            fecha_hasta = datetime.datetime.strptime(fecha_hasta, '%Y-%m-%d').date()
-            ordenes_list = ordenes_list.filter(fecha_pedido__lte=fecha_hasta)
-        except:
-            pass
-    
-    # Paginación
-    paginator = Paginator(ordenes_list, 10)  # 10 órdenes por página
-    page_number = request.GET.get('page')
-    ordenes = paginator.get_page(page_number)
-    
-    # Contexto
     context = {
         'ordenes': ordenes,
         'estados': EstadoOrden.choices,
@@ -471,26 +564,30 @@ def order_list(request):
 @login_required
 def cancel_order(request, pedido_id):
     """Cancelar una orden"""
-    orden = get_object_or_404(OrdenCompraCliente, pedido_id=pedido_id)
     
-    # Verificar que el usuario puede modificar esta orden
-    if request.user.is_staff or orden.cliente.correo_electronico == request.user.email:
-        # Solo se pueden cancelar órdenes pendientes
-        if orden.estado == EstadoOrden.PENDIENTE:
-            orden.estado = EstadoOrden.CANCELADA
-            orden.save()
-            
-            # Restaurar stock
-            for item in orden.items_orden_compra.all():
-                articulo = item.articulo
-                articulo.stock += item.cantidad
-                articulo.save()
-            
-            messages.success(request, f'Orden #{orden.nro_pedido} cancelada correctamente.')
+    try:
+        orden = get_object_or_404(OrdenCompraCliente, pedido_id=pedido_id)
+        
+        if request.user.is_staff or orden.cliente.correo_electronico == request.user.email:
+            if orden.estado == EstadoOrden.PENDIENTE:
+                with transaction.atomic():
+                    orden.estado = EstadoOrden.CANCELADA
+                    orden.save()
+                    
+                    # Restaurar stock
+                    for item in orden.items_orden_compra.all():
+                        articulo = item.articulo
+                        articulo.stock += item.cantidad
+                        articulo.save()
+                
+                messages.success(request, f'Orden #{orden.nro_pedido} cancelada correctamente.')
+            else:
+                messages.error(request, 'Solo se pueden cancelar órdenes pendientes.')
         else:
-            messages.error(request, 'Solo se pueden cancelar órdenes pendientes.')
-    else:
-        messages.error(request, 'No tienes permiso para cancelar esta orden.')
+            messages.error(request, 'No tienes permiso para cancelar esta orden.')
+            
+    except Exception as e:
+        messages.error(request, f'Error: {str(e)}')
     
     return redirect('order_list')
 
@@ -513,13 +610,102 @@ def lineas_por_grupo(request, grupo_id):
         return JsonResponse({'error': str(e)}, status=400)
 
 # ========================================
-# FUNCIONES DE EMAIL
+# FUNCIONES DE PDF
+# ========================================
+
+@login_required
+def generate_pdf_order(request, pedido_id):
+    """Generar PDF para una orden usando ReportLab"""
+    
+    try:
+        orden = get_object_or_404(OrdenCompraCliente, pedido_id=pedido_id)
+        
+        # Verificar que el usuario puede acceder a esta orden
+        if not request.user.is_staff and orden.cliente.correo_electronico != request.user.email:
+            messages.error(request, 'No tienes permiso para ver esta orden.')
+            return redirect('dashboard')
+        
+        # Crear un buffer para el PDF
+        buffer = BytesIO()
+        
+        # Crear el PDF
+        p = canvas.Canvas(buffer, pagesize=letter)
+        width, height = letter
+        
+        # Título
+        p.setFont("Helvetica-Bold", 18)
+        p.drawString(50, height - 50, f"Orden de Compra #{orden.nro_pedido}")
+        
+        # Fecha
+        p.setFont("Helvetica", 12)
+        p.drawString(50, height - 80, f"Fecha: {orden.fecha_pedido}")
+        
+        # Estado
+        estado_display = dict(EstadoOrden.choices).get(orden.estado, "Desconocido")
+        p.drawString(50, height - 100, f"Estado: {estado_display}")
+        
+        # Información del cliente
+        p.setFont("Helvetica-Bold", 14)
+        p.drawString(50, height - 140, "Información del Cliente:")
+        
+        p.setFont("Helvetica", 12)
+        p.drawString(50, height - 160, f"Nombre: {orden.cliente.nombres}")
+        p.drawString(50, height - 180, f"Documento: {orden.cliente.tipo_identificacion.nombre_tipo_identificacion} {orden.cliente.nro_documento}")
+        p.drawString(50, height - 200, f"Email: {orden.cliente.correo_electronico}")
+        
+        # Tabla de items
+        p.setFont("Helvetica-Bold", 14)
+        p.drawString(50, height - 240, "Detalle de la Orden:")
+        
+        # Items de la orden
+        y = height - 280
+        p.setFont("Helvetica", 10)
+        p.drawString(50, y, "Item")
+        p.drawString(150, y, "Producto")
+        p.drawString(350, y, "Precio")
+        p.drawString(420, y, "Cantidad")
+        p.drawString(490, y, "Total")
+        
+        y -= 20
+        for item in orden.items_orden_compra.all():
+            p.drawString(50, y, str(item.nro_item))
+            p.drawString(150, y, item.articulo.descripcion[:25])
+            p.drawString(350, y, f"${item.precio_unitario}")
+            p.drawString(420, y, str(item.cantidad))
+            p.drawString(490, y, f"${item.total_item}")
+            y -= 15
+        
+        # Total
+        y -= 20
+        p.setFont("Helvetica-Bold", 12)
+        p.drawString(420, y, f"Total: ${orden.importe}")
+        
+        # Pie de página
+        p.setFont("Helvetica", 10)
+        p.drawString(50, 50, f"Generado el {timezone.now().strftime('%d/%m/%Y %H:%M:%S')}")
+        p.drawString(width - 200, 50, "Sistema POS © 2025")
+        
+        # Guardar el PDF
+        p.showPage()
+        p.save()
+        
+        # Preparar la respuesta
+        buffer.seek(0)
+        response = HttpResponse(buffer, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="orden_{orden.nro_pedido}.pdf"'
+        
+        return response
+        
+    except Exception as e:
+        messages.error(request, f'Error generando PDF: {str(e)}')
+        return redirect('order_detail', pedido_id=pedido_id)
+
+# ========================================
+# FUNCIONES DE EMAIL (OPCIONAL)
 # ========================================
 
 def send_order_confirmation_email(orden):
-    """
-    Enviar email de confirmación de orden
-    """
+    """Enviar email de confirmación de orden"""
     try:
         subject = f'Confirmación de Orden #{orden.nro_pedido}'
         from_email = settings.DEFAULT_FROM_EMAIL
@@ -551,161 +737,3 @@ def send_order_confirmation_email(orden):
     except Exception as e:
         print(f"Error enviando email: {str(e)}")
         return False
-
-# ========================================
-# FUNCIONES DE PDF - REPORTLAB
-# ========================================
-
-@login_required
-def generate_pdf_order(request, pedido_id):
-    """Generar PDF para una orden usando ReportLab"""
-    orden = get_object_or_404(OrdenCompraCliente, pedido_id=pedido_id)
-    
-    # Verificar que el usuario puede acceder a esta orden
-    if not request.user.is_staff and orden.cliente.correo_electronico != request.user.email:
-        messages.error(request, 'No tienes permiso para ver esta orden.')
-        return redirect('dashboard')
-    
-    # Crear un buffer para el PDF
-    buffer = BytesIO()
-    
-    # Crear el PDF
-    p = canvas.Canvas(buffer, pagesize=letter)
-    width, height = letter
-    
-    # Estilos
-    styles = getSampleStyleSheet()
-    title_style = styles['Heading1']
-    subtitle_style = styles['Heading2']
-    normal_style = styles['Normal']
-    
-    # Título
-    p.setFont("Helvetica-Bold", 18)
-    p.drawString(50, height - 50, f"Orden de Compra #{orden.nro_pedido}")
-    
-    # Fecha
-    p.setFont("Helvetica", 12)
-    p.drawString(50, height - 80, f"Fecha: {orden.fecha_pedido}")
-    
-    # Estado
-    p.setFont("Helvetica", 12)
-    estado_display = "Pendiente" if orden.estado == 1 else "Procesando" if orden.estado == 2 else "Completada" if orden.estado == 3 else "Cancelada"
-    p.drawString(50, height - 100, f"Estado: {estado_display}")
-    
-    # Información del cliente
-    p.setFont("Helvetica-Bold", 14)
-    p.drawString(50, height - 140, "Información del Cliente:")
-    
-    p.setFont("Helvetica", 12)
-    p.drawString(50, height - 160, f"Nombre: {orden.cliente.nombres}")
-    p.drawString(50, height - 180, f"Documento: {orden.cliente.tipo_identificacion.nombre_tipo_identificacion} {orden.cliente.nro_documento}")
-    p.drawString(50, height - 200, f"Email: {orden.cliente.correo_electronico}")
-    
-    if orden.cliente.direccion:
-        # Manejar direcciones largas
-        direccion = orden.cliente.direccion
-        if len(direccion) > 60:
-            direccion1 = direccion[:60]
-            direccion2 = direccion[60:]
-            p.drawString(50, height - 220, f"Dirección: {direccion1}")
-            p.drawString(110, height - 240, f"{direccion2}")
-        else:
-            p.drawString(50, height - 220, f"Dirección: {direccion}")
-    
-    # Tabla de items
-    p.setFont("Helvetica-Bold", 14)
-    p.drawString(50, height - 280, "Detalle de la Orden:")
-    
-    # Crear datos de la tabla
-    data = [['#', 'Producto', 'Precio', 'Cantidad', 'Total']]
-    
-    for item in orden.items_orden_compra.all():
-        data.append([
-            str(item.nro_item),
-            item.articulo.descripcion,
-            f"${item.precio_unitario}",
-            str(item.cantidad),
-            f"${item.total_item}"
-        ])
-    
-    # Añadir fila de total
-    data.append(['', '', '', 'Total:', f"${orden.importe}"])
-    
-    # Crear la tabla
-    table = Table(data, colWidths=[30, 250, 70, 70, 70])
-    
-    # Estilo de la tabla
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
-        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ('ALIGN', (2, 1), (-1, -1), 'RIGHT'),
-        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-        ('ALIGN', (3, -1), (-1, -1), 'RIGHT'),
-    ]))
-    
-    # Dibujar la tabla
-    table.wrapOn(p, width - 100, height)
-    table.drawOn(p, 50, height - 500)
-    
-    # Pie de página
-    p.setFont("Helvetica", 10)
-    p.drawString(50, 50, f"Generado el {timezone.now().strftime('%d/%m/%Y %H:%M:%S')}")
-    p.drawString(width - 200, 50, "Sistema POS © 2025")
-    
-    # Guardar el PDF
-    p.showPage()
-    p.save()
-    
-    # Preparar la respuesta
-    buffer.seek(0)
-    response = HttpResponse(buffer, content_type='application/pdf')
-    response['Content-Disposition'] = f'inline; filename="orden_{orden.nro_pedido}.pdf"'
-    
-    return response
-
-# ========================================
-# FUNCIONES DE PDF - WEASYPRINT
-# ========================================
-
-@login_required
-def generate_pdf_order_weasy(request, pedido_id):
-    """Generar PDF para una orden usando WeasyPrint (HTML a PDF)"""
-    if not WEASYPRINT_AVAILABLE:
-        messages.error(request, 'WeasyPrint no está disponible en este sistema. Usa la versión ReportLab.')
-        return redirect('generate_pdf_order', pedido_id=pedido_id)
-    
-    orden = get_object_or_404(OrdenCompraCliente, pedido_id=pedido_id)
-    
-    # Verificar que el usuario puede acceder a esta orden
-    if not request.user.is_staff and orden.cliente.correo_electronico != request.user.email:
-        messages.error(request, 'No tienes permiso para ver esta orden.')
-        return redirect('dashboard')
-    
-    try:
-        # Renderizar el HTML
-        html_string = render_to_string('pdf/order_template.html', {
-            'orden': orden,
-            'items': orden.items_orden_compra.all(),
-            'fecha_generacion': timezone.now(),
-        })
-        
-        # Configuración de fuentes
-        font_config = FontConfiguration()
-        
-        # Crear el PDF
-        html = HTML(string=html_string, base_url=request.build_absolute_uri('/'))
-        result = html.write_pdf(font_config=font_config)
-        
-        # Crear respuesta HTTP
-        response = HttpResponse(result, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="orden_{orden.nro_pedido}.pdf"'
-        
-        return response
-    except Exception as e:
-        messages.error(request, f'Error generando PDF con WeasyPrint: {str(e)}. Usa la versión ReportLab.')
-        return redirect('generate_pdf_order', pedido_id=pedido_id)

@@ -1,3 +1,4 @@
+# core/models.py
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from pos_project.choices import EstadoEntidades, EstadoOrden
@@ -70,8 +71,8 @@ class GrupoArticulo(models.Model):
     grupo_id = models.AutoField(primary_key=True)
     nombre_grupo = models.CharField(max_length=100)
     estado = models.IntegerField(choices=EstadoEntidades, default=EstadoEntidades.ACTIVO)
-    fecha_creacion = models.DateTimeField(auto_now_add=True)  # ← AGREGADO
-    fecha_modificacion = models.DateTimeField(auto_now=True)  # ← AGREGADO
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_modificacion = models.DateTimeField(auto_now=True)
     
     def __str__(self):
         return self.nombre_grupo
@@ -84,8 +85,8 @@ class LineaArticulo(models.Model):
     grupo = models.ForeignKey(GrupoArticulo, on_delete=models.CASCADE)
     nombre_linea = models.CharField(max_length=100)
     estado = models.IntegerField(choices=EstadoEntidades, default=EstadoEntidades.ACTIVO)
-    fecha_creacion = models.DateTimeField(auto_now_add=True)  # ← AGREGADO
-    fecha_modificacion = models.DateTimeField(auto_now=True)  # ← AGREGADO
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_modificacion = models.DateTimeField(auto_now=True)
     
     def __str__(self):
         return self.nombre_linea
@@ -114,6 +115,11 @@ class Articulo(models.Model):
         """Obtener el primer precio del artículo"""
         return self.precios.first()
     
+    @property
+    def grupo_nombre(self):
+        """Obtener el nombre del grupo de forma segura"""
+        return self.grupo.nombre_grupo if self.grupo else 'Sin grupo'
+    
     class Meta:
         db_table = "articulos"
 
@@ -130,10 +136,10 @@ class ListaPrecio(models.Model):
     class Meta:
         db_table = "lista_precios"
 
-# Modelos del carrito - CORREGIDOS
+# Modelos del carrito
 class OrdenCompraCliente(models.Model):
     pedido_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    nro_pedido = models.CharField(max_length=50, unique=True, blank=True)  # ← CORREGIDO
+    nro_pedido = models.CharField(max_length=50, unique=True, blank=True)
     fecha_pedido = models.DateField(auto_now_add=True, null=False)
     cliente = models.ForeignKey(Cliente, on_delete=models.RESTRICT, null=False)
     vendedor = models.ForeignKey(Vendedor, on_delete=models.RESTRICT, null=False)
@@ -145,7 +151,6 @@ class OrdenCompraCliente(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.nro_pedido:
-            # Generar número de pedido automático
             import time
             self.nro_pedido = f"ORD-{int(time.time())}"
         super().save(*args, **kwargs)
@@ -178,10 +183,8 @@ class ItemOrdenCompraCliente(models.Model):
     fecha_creacion = models.DateTimeField(auto_now_add=True, null=False)
 
     def save(self, *args, **kwargs):
-        # Calcular el total del item
         self.total_item = self.cantidad * self.precio_unitario
         
-        # Si no se ha establecido el precio unitario, tomarlo del artículo
         if self.precio_unitario == 0:
             try:
                 lista_precio = self.articulo.listaprecio
@@ -191,8 +194,6 @@ class ItemOrdenCompraCliente(models.Model):
                 pass
         
         super().save(*args, **kwargs)
-        
-        # Actualizar el total de la orden
         self.pedido.actualizar_total()
 
     def __str__(self):

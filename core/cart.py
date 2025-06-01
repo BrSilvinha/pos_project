@@ -1,3 +1,4 @@
+# core/cart.py
 from decimal import Decimal
 from django.conf import settings
 from .models import Articulo
@@ -27,20 +28,26 @@ class Cart:
             # Obtener el precio del artículo
             try:
                 lista_precio = articulo.listaprecio
-                precio = float(lista_precio.precio_1)
+                precio = float(lista_precio.precio_1) if lista_precio else 0
             except:
                 precio = 0
             
             self.cart[articulo_id] = {
                 'cantidad': 0,
                 'precio': precio,
-                'descripcion': articulo.descripcion
+                'descripcion': articulo.descripcion,
+                'codigo': articulo.codigo_articulo,
+                'stock_disponible': articulo.stock
             }
         
         if update_cantidad:
             self.cart[articulo_id]['cantidad'] = cantidad
         else:
             self.cart[articulo_id]['cantidad'] += cantidad
+        
+        # Verificar que no exceda el stock
+        if self.cart[articulo_id]['cantidad'] > articulo.stock:
+            self.cart[articulo_id]['cantidad'] = articulo.stock
         
         self.save()
     
@@ -64,16 +71,17 @@ class Cart:
         Iterar sobre los elementos en el carrito y obtener los artículos de la base de datos
         """
         articulo_ids = self.cart.keys()
-        articulos = Articulo.objects.filter(articulo_id__in=articulo_ids)
+        articulos = Articulo.objects.filter(articulo_id__in=articulo_ids).select_related('grupo', 'linea')
         
         cart = self.cart.copy()
         for articulo in articulos:
             cart[str(articulo.articulo_id)]['articulo'] = articulo
         
         for item in cart.values():
-            item['precio'] = Decimal(item['precio'])
-            item['total_precio'] = item['precio'] * item['cantidad']
-            yield item
+            if 'articulo' in item:  # Solo procesar items que tienen artículo válido
+                item['precio'] = Decimal(str(item['precio']))
+                item['total_precio'] = item['precio'] * item['cantidad']
+                yield item
     
     def __len__(self):
         """
@@ -85,7 +93,13 @@ class Cart:
         """
         Calcular el costo total de los items
         """
-        return sum(Decimal(item['precio']) * item['cantidad'] for item in self.cart.values())
+        return sum(Decimal(str(item['precio'])) * item['cantidad'] for item in self.cart.values())
+    
+    def get_total_items(self):
+        """
+        Obtener número total de items únicos
+        """
+        return len(self.cart)
     
     def clear(self):
         """
@@ -93,3 +107,33 @@ class Cart:
         """
         del self.session['cart']
         self.save()
+    
+    def update_item(self, articulo, cantidad):
+        """
+        Actualizar la cantidad de un item específico
+        """
+        articulo_id = str(articulo.articulo_id)
+        if articulo_id in self.cart:
+            if cantidad <= 0:
+                self.remove(articulo)
+            else:
+                # Verificar stock disponible
+                if cantidad <= articulo.stock:
+                    self.cart[articulo_id]['cantidad'] = cantidad
+                else:
+                    self.cart[articulo_id]['cantidad'] = articulo.stock
+                self.save()
+    
+    def get_item(self, articulo):
+        """
+        Obtener un item específico del carrito
+        """
+        articulo_id = str(articulo.articulo_id)
+        return self.cart.get(articulo_id)
+    
+    def has_item(self, articulo):
+        """
+        Verificar si un artículo está en el carrito
+        """
+        articulo_id = str(articulo.articulo_id)
+        return articulo_id in self.cart
